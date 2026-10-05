@@ -1,3 +1,4 @@
+import os
 import shutil
 import subprocess
 import re
@@ -7,7 +8,19 @@ import psutil
 class SystemService:
     @staticmethod
     def get_ffmpeg_path() -> Optional[str]:
-        return shutil.which("ffmpeg")
+        # 1. System PATH
+        bin_path = shutil.which("ffmpeg")
+        if bin_path:
+            return bin_path
+        # 2. Embedded imageio-ffmpeg binary
+        try:
+            import imageio_ffmpeg
+            exe = imageio_ffmpeg.get_ffmpeg_exe()
+            if exe and os.path.exists(exe):
+                return exe
+        except Exception:
+            pass
+        return None
 
     @staticmethod
     def get_ffprobe_path() -> Optional[str]:

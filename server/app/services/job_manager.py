@@ -164,8 +164,22 @@ class JobManager:
                 "message": "Rendering started."
             })
 
-            # Check NVENC capabilities
+            # Check FFmpeg and NVENC capabilities
             is_avail, _, is_nvenc, _ = SystemService.check_ffmpeg_capabilities()
+            if not is_avail:
+                job.status = JobStatus.FAILED
+                job.error_message = (
+                    "FFmpeg is not installed on the worker system or not found in system PATH. "
+                    "Please install FFmpeg (e.g., download from ffmpeg.org or run 'winget install Gyan.FFmpeg') on the worker computer."
+                )
+                await self.broadcast(job.job_id, {
+                    "type": "error",
+                    "job_id": job.job_id,
+                    "status": JobStatus.FAILED,
+                    "error": job.error_message
+                })
+                return
+
             use_nvenc = is_nvenc
             if not is_nvenc:
                 if not job.allow_cpu_fallback and not settings.ALLOW_CPU_FALLBACK:

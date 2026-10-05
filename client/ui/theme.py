@@ -1,26 +1,33 @@
 """
-Design system, color tokens, and style constants for the Studio application.
+Claymorphism Design System & Vibrant Modern Light Palette
+Features soft rounded clay surfaces, tactile borders, glossy accent pops,
+and clean contrast for professional desktop software.
 """
 
-# Background surfaces
-BG_MAIN = "#0B0D13"       # Deep dark background
-BG_SIDEBAR = "#12151E"    # Sidebar surface
-BG_CARD = "#171B26"       # Card / container surface
-BG_INPUT = "#1F2433"      # Text fields / dropdowns surface
-BORDER_COLOR = "#2A3144"  # Structural border separator
+# Base Surfaces (Claymorphism Light Foundation)
+BG_MAIN = "#EEF2F9"        # Soft pastel porcelain canvas
+BG_SIDEBAR = "#E4EAF4"     # Distinct soft clay sidebar
+BG_CARD = "#FFFFFF"        # Crisp white floating clay card
+BG_CARD_ALT = "#F5F8FC"    # Tinted clay container
+BG_INPUT = "#FFFFFF"       # Bright input surface
+BORDER_COLOR = "#D5DFEC"   # Subtle clay rim border
+BORDER_HIGHLIGHT = "#FFFFFF"# Inner light glow rim
 
-# Accents
-ACCENT_BLUE = "#3B82F6"
+# Vibrant Claymorphism Accents (Vivid, playful, shiny)
+ACCENT_BLUE = "#3B82F6"          # Electric Blue
 ACCENT_BLUE_HOVER = "#2563EB"
-ACCENT_GREEN = "#10B981"
+ACCENT_GREEN = "#10B981"         # Mint Emerald
 ACCENT_GREEN_HOVER = "#059669"
-ACCENT_RED = "#EF4444"
+ACCENT_PURPLE = "#8B5CF6"        # Vivid Violet
+ACCENT_PURPLE_HOVER = "#7C3AED"
+ACCENT_ORANGE = "#F97316"        # Coral Amber
+ACCENT_RED = "#EF4444"           # Strawberry Red
 ACCENT_RED_HOVER = "#DC2626"
-ACCENT_YELLOW = "#F59E0B"
-ACCENT_PURPLE = "#8B5CF6"
+ACCENT_CYAN = "#06B6D4"          # Ocean Cyan
 
-# Typography
-TEXT_PRIMARY = "#F9FAFB"
-TEXT_SECONDARY = "#D1D5DB"
-TEXT_MUTED = "#9CA3AF"
-TEXT_DIM = "#6B7280"
+# Typography (High legibility on light clay)
+TEXT_PRIMARY = "#0F172A"         # Deep Slate (Almost Black)
+TEXT_SECONDARY = "#334155"       # Slate
+TEXT_MUTED = "#64748B"           # Cool Grey
+TEXT_DIM = "#94A3B8"             # Light Slate Placeholder
+

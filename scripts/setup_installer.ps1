@@ -64,8 +64,13 @@ if ($CreateShortcuts) {
 
     # Client Shortcut
     $ClientShortcut = $WshShell.CreateShortcut("$DesktopPath\GPU Render Studio.lnk")
-    $ClientShortcut.TargetPath = "$RootDir\scripts\start_client.bat"
-    $ClientShortcut.WorkingDirectory = "$RootDir"
+    if (Test-Path "$RootDir\dist\GPURenderStudio\GPURenderStudio.exe") {
+        $ClientShortcut.TargetPath = "$RootDir\dist\GPURenderStudio\GPURenderStudio.exe"
+        $ClientShortcut.WorkingDirectory = "$RootDir\dist\GPURenderStudio"
+    } else {
+        $ClientShortcut.TargetPath = "$RootDir\scripts\start_client.bat"
+        $ClientShortcut.WorkingDirectory = "$RootDir"
+    }
     $ClientShortcut.Description = "Distributed Task Offloading & Remote GPU Rendering Studio"
     if (Test-Path "$RootDir\client\assets\icon.ico") {
         $ClientShortcut.IconLocation = "$RootDir\client\assets\icon.ico"

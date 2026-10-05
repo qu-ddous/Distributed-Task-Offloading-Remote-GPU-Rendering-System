@@ -25,46 +25,48 @@ class ActiveJobView(ctk.CTkFrame):
         self._build_console_logs_card()
 
     def _build_header_card(self):
-        header = ctk.CTkFrame(self, fg_color=BG_CARD, corner_radius=14, border_width=1, border_color=BORDER_COLOR)
-        header.pack(fill="x", padx=10, pady=(0, 15))
+        header = ctk.CTkFrame(self, fg_color=BG_CARD, corner_radius=18, border_width=1, border_color=BORDER_COLOR)
+        header.pack(fill="x", padx=10, pady=(0, 16))
         header.grid_columnconfigure(0, weight=1)
 
         title_box = ctk.CTkFrame(header, fg_color="transparent")
-        title_box.grid(row=0, column=0, padx=20, pady=16, sticky="w")
+        title_box.grid(row=0, column=0, padx=22, pady=16, sticky="w")
 
-        ctk.CTkLabel(title_box, text="Live Render Monitor", font=ctk.CTkFont(size=18, weight="bold"), text_color=TEXT_PRIMARY).pack(anchor="w")
-        self.lbl_job_id_display = ctk.CTkLabel(title_box, text="No job currently active", font=ctk.CTkFont(size=12), text_color=TEXT_MUTED)
+        ctk.CTkLabel(title_box, text="Live Telemetry & Execution Monitor", font=ctk.CTkFont(size=18, weight="bold"), text_color=TEXT_PRIMARY).pack(anchor="w")
+        self.lbl_job_id_display = ctk.CTkLabel(title_box, text="No active render job currently queued", font=ctk.CTkFont(size=12), text_color=TEXT_MUTED)
         self.lbl_job_id_display.pack(anchor="w")
 
         self.btn_cancel = ctk.CTkButton(
             header,
-            text="✖ Cancel Job",
+            text="✖  Cancel Job",
             command=self._on_cancel_clicked,
-            fg_color=ACCENT_RED,
-            hover_color=ACCENT_RED_HOVER,
-            width=110,
-            height=32,
+            fg_color="#FEE2E2",
+            hover_color="#FECACA",
+            text_color=ACCENT_RED,
+            corner_radius=10,
+            width=120,
+            height=34,
             font=ctk.CTkFont(size=12, weight="bold"),
             state="disabled"
         )
-        self.btn_cancel.grid(row=0, column=1, padx=20, pady=16, sticky="e")
+        self.btn_cancel.grid(row=0, column=1, padx=22, pady=16, sticky="e")
 
     def _build_progress_card(self):
-        card = ctk.CTkFrame(self, fg_color=BG_CARD, corner_radius=14, border_width=1, border_color=BORDER_COLOR)
-        card.pack(fill="x", padx=10, pady=(0, 15))
+        card = ctk.CTkFrame(self, fg_color=BG_CARD, corner_radius=18, border_width=1, border_color=BORDER_COLOR)
+        card.pack(fill="x", padx=10, pady=(0, 16))
 
-        self.progress_bar = ctk.CTkProgressBar(card, height=14, corner_radius=7, fg_color="#262C3D", progress_color=ACCENT_BLUE)
+        self.progress_bar = ctk.CTkProgressBar(card, height=16, corner_radius=8, fg_color="#E2E8F0", progress_color=ACCENT_BLUE)
         self.progress_bar.set(0.0)
-        self.progress_bar.pack(fill="x", padx=20, pady=(18, 10))
+        self.progress_bar.pack(fill="x", padx=22, pady=(20, 12))
 
         stats = ctk.CTkFrame(card, fg_color="transparent")
-        stats.pack(fill="x", padx=20, pady=(0, 18))
+        stats.pack(fill="x", padx=22, pady=(0, 20))
         stats.grid_columnconfigure((0, 1, 2, 3), weight=1)
 
         self.lbl_stage = ctk.CTkLabel(stats, text="Stage: Idle", font=ctk.CTkFont(size=13, weight="bold"), text_color=TEXT_PRIMARY)
         self.lbl_stage.grid(row=0, column=0, sticky="w")
 
-        self.lbl_pct = ctk.CTkLabel(stats, text="0.0%", font=ctk.CTkFont(size=14, weight="bold"), text_color=ACCENT_BLUE)
+        self.lbl_pct = ctk.CTkLabel(stats, text="0.0%", font=ctk.CTkFont(size=15, weight="bold"), text_color=ACCENT_BLUE)
         self.lbl_pct.grid(row=0, column=1)
 
         self.lbl_elapsed = ctk.CTkLabel(stats, text="Elapsed: 00:00", font=ctk.CTkFont(size=12), text_color=TEXT_MUTED)
@@ -74,57 +76,61 @@ class ActiveJobView(ctk.CTkFrame):
         self.lbl_eta.grid(row=0, column=3, sticky="e")
 
     def _build_results_card(self):
-        self.result_card = ctk.CTkFrame(self, fg_color=BG_CARD, corner_radius=14, border_width=1, border_color=BORDER_COLOR)
-        self.result_card.pack(fill="x", padx=10, pady=(0, 15))
+        self.result_card = ctk.CTkFrame(self, fg_color=BG_CARD, corner_radius=18, border_width=1, border_color=BORDER_COLOR)
+        self.result_card.pack(fill="x", padx=10, pady=(0, 16))
 
         self.lbl_result_status = ctk.CTkLabel(self.result_card, text="Job Status: Awaiting Submission", font=ctk.CTkFont(size=14, weight="bold"), text_color=TEXT_MUTED)
-        self.lbl_result_status.pack(anchor="w", padx=20, pady=(16, 4))
+        self.lbl_result_status.pack(anchor="w", padx=22, pady=(16, 4))
 
-        self.lbl_result_details = ctk.CTkLabel(self.result_card, text="Submit a video from the 'New Render Job' page to monitor here.", font=ctk.CTkFont(size=12), text_color=TEXT_DIM, justify="left")
-        self.lbl_result_details.pack(anchor="w", padx=20, pady=(0, 14))
+        self.lbl_result_details = ctk.CTkLabel(self.result_card, text="Submit a video from 'New Render Job' to stream real-time NVENC logs and frames.", font=ctk.CTkFont(size=12), text_color=TEXT_MUTED, justify="left")
+        self.lbl_result_details.pack(anchor="w", padx=22, pady=(0, 14))
 
         self.btn_open_folder = ctk.CTkButton(
             self.result_card,
-            text="📂 Open Output Folder",
+            text="📂  Open Output Folder",
             command=self._on_open_folder_clicked,
-            fg_color="#374151",
-            hover_color="#4B5563",
-            height=32,
-            width=160
+            fg_color=ACCENT_GREEN,
+            hover_color=ACCENT_GREEN_HOVER,
+            corner_radius=10,
+            height=34,
+            width=180,
+            font=ctk.CTkFont(size=12, weight="bold")
         )
         self.last_saved_folder: Optional[Path] = None
 
     def _build_console_logs_card(self):
-        card = ctk.CTkFrame(self, fg_color=BG_CARD, corner_radius=14, border_width=1, border_color=BORDER_COLOR)
-        card.pack(fill="both", expand=True, padx=10, pady=(0, 15))
+        card = ctk.CTkFrame(self, fg_color=BG_CARD, corner_radius=18, border_width=1, border_color=BORDER_COLOR)
+        card.pack(fill="both", expand=True, padx=10, pady=(0, 16))
 
         top = ctk.CTkFrame(card, fg_color="transparent")
-        top.pack(fill="x", padx=20, pady=(14, 6))
+        top.pack(fill="x", padx=22, pady=(14, 6))
 
-        ctk.CTkLabel(top, text="Remote Worker Stream Console", font=ctk.CTkFont(size=13, weight="bold"), text_color=TEXT_SECONDARY).pack(side="left")
+        ctk.CTkLabel(top, text="FFmpeg NVENC Real-Time Console Stream", font=ctk.CTkFont(size=13, weight="bold"), text_color=TEXT_PRIMARY).pack(side="left")
 
         btn_clear = ctk.CTkButton(
             top,
             text="Clear Logs",
             command=self._clear_logs,
-            width=70,
-            height=24,
-            fg_color="#2A3144",
-            hover_color="#374151",
-            font=ctk.CTkFont(size=11)
+            width=75,
+            height=26,
+            corner_radius=6,
+            fg_color="#F1F5F9",
+            hover_color="#E2E8F0",
+            text_color=TEXT_SECONDARY,
+            font=ctk.CTkFont(size=11, weight="bold")
         )
         btn_clear.pack(side="right")
 
         self.txt_console = ctk.CTkTextbox(
             card,
-            fg_color=BG_MAIN,
-            text_color="#10B981",
-            font=ctk.CTkFont(family="Courier", size=11),
-            corner_radius=10,
+            fg_color="#0F172A",
+            text_color="#34D399",
+            font=ctk.CTkFont(family="Consolas", size=11),
+            corner_radius=12,
             border_width=1,
-            border_color=BORDER_COLOR
+            border_color="#1E293B"
         )
-        self.txt_console.pack(fill="both", expand=True, padx=20, pady=(0, 16))
+        self.txt_console.pack(fill="both", expand=True, padx=22, pady=(0, 18))
 
     def append_log(self, msg: str):
         self.txt_console.insert("end", msg + "\n")
@@ -154,13 +160,13 @@ class ActiveJobView(ctk.CTkFrame):
         net = NetworkClient(host, port, token)
         start_overall = time.time()
 
-        # Step 1: Uploading
+        # Phase 1: Uploading
         self.lbl_stage.configure(text="Stage: Uploading video...")
         self.lbl_pct.configure(text="0.0%")
         self.progress_bar.set(0.0)
-        self.lbl_result_status.configure(text="● Job Status: Uploading Payload", text_color=ACCENT_BLUE)
-        self.lbl_result_details.configure(text=f"Uploading {input_file.name} to http://{host}:{port} with SHA-256 verification...")
-        self.append_log(f"[Upload] Starting upload for {input_file.name} ({input_file.stat().st_size:,} bytes)...")
+        self.lbl_result_status.configure(text="● Job Status: Uploading File Stream", text_color=ACCENT_BLUE)
+        self.lbl_result_details.configure(text=f"Streaming {input_file.name} to {host}:{port} with cryptographic SHA-256 validation...")
+        self.append_log(f"[Upload] Initiating upload for {input_file.name} ({input_file.stat().st_size:,} bytes)...")
 
         def on_upload_prog(sent, total):
             pct = (sent / total) * 100.0 if total > 0 else 0
@@ -190,7 +196,7 @@ class ActiveJobView(ctk.CTkFrame):
         self.after(0, lambda: self.lbl_job_id_display.configure(text=f"Active Job ID: {job_id}"))
         self.append_log(f"[Upload] Completed in {t_up_duration}s. Server confirmed SHA-256 match.")
 
-        # Step 2: Live WebSocket Rendering
+        # Phase 2: Live GPU NVENC Rendering
         self.lbl_stage.configure(text="Stage: Remote GPU Rendering...")
         self.lbl_result_status.configure(text="● Job Status: Remote GPU Encoding (NVENC)", text_color=ACCENT_PURPLE)
         self.ws_stop_event.clear()
@@ -242,14 +248,14 @@ class ActiveJobView(ctk.CTkFrame):
             self.after(0, lambda: self._on_failure(f"Render Error: {err}"))
             return
 
-        # Step 3: Downloading
+        # Phase 3: Downloading
         expected_hash = render_summary.get("output_checksum")
         t_render_sec = render_summary.get("render_seconds", 0)
         target_path = out_dir / out_name
         self.last_saved_folder = out_dir
 
         self.lbl_stage.configure(text="Stage: Downloading finished video...")
-        self.lbl_result_status.configure(text="● Job Status: Downloading Stream", text_color=ACCENT_BLUE)
+        self.lbl_result_status.configure(text="● Job Status: Downloading Stream", text_color=ACCENT_CYAN)
         self.append_log(f"[Download] Downloading finished video to {target_path}...")
 
         def on_dl_prog(received, total):
@@ -317,15 +323,15 @@ class ActiveJobView(ctk.CTkFrame):
         self.lbl_result_status.configure(text="✔ Remote GPU Render Complete", text_color=ACCENT_GREEN)
 
         details = (
-            f"File: {target_file.name}\n"
+            f"Saved: {target_file.name}\n"
             f"Upload: {upload_sec}s | Render: {render_sec}s | Download: {download_sec}s | Total: {total_sec}s\n"
-            f"SHA-256 Checksum Verified: {checksum}"
+            f"SHA-256 Checksum: {checksum}"
         )
         self.lbl_result_details.configure(text=details)
-        self.btn_open_folder.pack(anchor="w", padx=20, pady=(0, 16))
+        self.btn_open_folder.pack(anchor="w", padx=22, pady=(0, 16))
 
         self.append_log(f"[Finished] All stages completed successfully in {total_sec}s.")
-        messagebox.showinfo("Render Finished", f"Rendered video successfully downloaded and verified!\nLocation: {target_file}")
+        messagebox.showinfo("Render Finished", f"Remote GPU rendering complete!\nSaved to:\n{target_file}")
 
     def _on_cancel_clicked(self):
         if not self.active_job_id:
@@ -353,3 +359,4 @@ class ActiveJobView(ctk.CTkFrame):
             else:
                 import subprocess
                 subprocess.Popen(["xdg-open", str(self.last_saved_folder)])
+

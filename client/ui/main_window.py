@@ -1,8 +1,8 @@
 """
 Modern Multi-Page Desktop Client Studio
 Distributed Task Offloading & Remote GPU Rendering System
-Features full multi-page architecture with Sidebar Navigation, Topbar Telemetry,
-and dedicated views for Dashboard, New Render Job, Active Job Monitor, and Settings.
+Features full Claymorphism Light aesthetic, tactile sidebar navigation,
+real-time status header, and independent multi-page views.
 """
 
 import sys
@@ -11,7 +11,9 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 
 import customtkinter as ctk
-ctk.set_appearance_mode("Dark")
+
+# Explicit Light Theme Mode
+ctk.set_appearance_mode("Light")
 ctk.set_default_color_theme("blue")
 
 from client.ui.theme import *
@@ -20,6 +22,7 @@ from client.ui.components.topbar import TopbarHeader
 from client.ui.views.dashboard_view import DashboardView
 from client.ui.views.render_job_view import RenderJobView
 from client.ui.views.active_job_view import ActiveJobView
+from client.ui.views.benchmarks_view import BenchmarksView
 from client.ui.views.settings_view import SettingsView
 
 from client.services.config_manager import config_manager
@@ -29,10 +32,18 @@ class App(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        self.title("GPU Render Stream Studio • Distributed Offloading")
-        self.geometry("1180x820")
-        self.minsize(1040, 720)
+        self.title("GPU Render Stream Studio • Claymorphism Edition")
+        self.geometry("1200x820")
+        self.minsize(1060, 720)
         self.configure(fg_color=BG_MAIN)
+
+        # Set application icon if exists
+        icon_path = Path(__file__).resolve().parent.parent / "assets" / "icon.ico"
+        if icon_path.exists():
+            try:
+                self.iconbitmap(str(icon_path))
+            except Exception:
+                pass
 
         # Load persisted settings
         self.config_data = config_manager.load()
@@ -60,9 +71,9 @@ class App(ctk.CTk):
         self.topbar = TopbarHeader(self, on_quick_connect=self._startup_connection_check)
         self.topbar.grid(row=0, column=1, sticky="ew")
 
-        # 3. Main Page Host Container
+        # 3. Main Page Host Container (Independent Views)
         self.page_container = ctk.CTkFrame(self, fg_color="transparent")
-        self.page_container.grid(row=1, column=1, sticky="nsew", padx=20, pady=(15, 20))
+        self.page_container.grid(row=1, column=1, sticky="nsew", padx=22, pady=(16, 20))
         self.page_container.grid_columnconfigure(0, weight=1)
         self.page_container.grid_rowconfigure(0, weight=1)
 
@@ -71,36 +82,43 @@ class App(ctk.CTk):
             "dashboard": DashboardView(self.page_container, self),
             "render_job": RenderJobView(self.page_container, self),
             "active_job": ActiveJobView(self.page_container, self),
+            "benchmarks": BenchmarksView(self.page_container, self),
             "settings": SettingsView(self.page_container, self)
         }
 
-        # Place views in the grid container
-        for v in self.views.values():
-            v.grid(row=0, column=0, sticky="nsew")
-
-        # Show initial Dashboard
+        # Pack initial view
+        self.current_view_widget = None
         self.navigate_to("dashboard")
 
     def navigate_to(self, page_name: str):
         if page_name not in self.views:
             return
 
-        # Bring view to top
-        view = self.views[page_name]
-        view.tkraise()
+        # Hide current active view widget if any
+        if self.current_view_widget:
+            self.current_view_widget.grid_forget()
+
+        # Show target view widget cleanly
+        target_view = self.views[page_name]
+        target_view.grid(row=0, column=0, sticky="nsew")
+        self.current_view_widget = target_view
 
         # Update topbar title
         titles = {
             "dashboard": "Dashboard Overview",
             "render_job": "Create New Remote Render Job",
-            "active_job": "Active Job Telemetry & Logs",
+            "active_job": "Live Job Telemetry & Logs",
+            "benchmarks": "Performance & Benchmark Suite",
             "settings": "Host Connection & Settings"
         }
         self.topbar.set_title(titles.get(page_name, "Studio"))
-        self.sidebar.buttons[page_name].configure(fg_color=ACCENT_BLUE, text_color=TEXT_PRIMARY)
-        for k, b in self.sidebar.buttons.items():
-            if k != page_name:
-                b.configure(fg_color="transparent", text_color=TEXT_SECONDARY)
+
+        # Update sidebar active button styling
+        for name, btn in self.sidebar.buttons.items():
+            if name == page_name:
+                btn.configure(fg_color=ACCENT_BLUE, text_color="#FFFFFF")
+            else:
+                btn.configure(fg_color="transparent", text_color=TEXT_SECONDARY)
 
     def _startup_connection_check(self):
         host = self.config_data.get("server_host", "127.0.0.1")
@@ -141,7 +159,7 @@ class App(ctk.CTk):
         self.views["dashboard"].update_status(False)
 
     def start_render_job(self, params: Dict[str, Any]):
-        # Navigate to Active Job view and launch workflow
+        # Switch to Active Job monitor page and trigger workflow
         self.navigate_to("active_job")
         threading.Thread(target=self.views["active_job"].run_render_flow, args=(params,), daemon=True).start()
 
@@ -151,3 +169,4 @@ class App(ctk.CTk):
 if __name__ == "__main__":
     app = App()
     app.mainloop()
+
