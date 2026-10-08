@@ -3,23 +3,23 @@ import customtkinter as ctk
 
 from client.ui.theme import *
 
-class SidebarNavigation(ctk.CTkFrame):
+class ServerSidebar(ctk.CTkFrame):
     def __init__(self, master, on_navigate: Callable[[str], None]):
         super().__init__(master, fg_color=BG_SIDEBAR, width=240, corner_radius=0)
         self.on_navigate = on_navigate
-        self.active_page = "dashboard"
+        self.active_page = "overview"
         self.buttons = {}
 
         self._build_sidebar()
 
     def _build_sidebar(self):
-        # App Brand Header with shiny badge
+        # Top Header Brand
         brand_frame = ctk.CTkFrame(self, fg_color="transparent")
-        brand_frame.pack(fill="x", padx=18, pady=(24, 20))
+        brand_frame.pack(fill="x", padx=18, pady=(20, 16))
 
         badge = ctk.CTkLabel(
             brand_frame,
-            text="CLAY STUDIO",
+            text="WORKER SERVER",
             font=ctk.CTkFont(size=10, weight="bold"),
             text_color="#FFFFFF",
             fg_color=ACCENT_PURPLE,
@@ -27,79 +27,68 @@ class SidebarNavigation(ctk.CTkFrame):
             padx=8,
             pady=2
         )
-        badge.pack(anchor="w", pady=(0, 4))
+        badge.pack(anchor="w", pady=(0, 6))
 
         ctk.CTkLabel(
             brand_frame,
-            text="⚡ GPU Stream",
-            font=ctk.CTkFont(size=20, weight="bold"),
-            text_color=TEXT_PRIMARY
+            text="⚡ GPU Render\nStream Studio",
+            font=ctk.CTkFont(size=18, weight="bold"),
+            text_color=TEXT_PRIMARY,
+            justify="left"
         ).pack(anchor="w")
 
         ctk.CTkLabel(
             brand_frame,
-            text="Task Offloading Studio",
+            text="Render Worker Node",
             font=ctk.CTkFont(size=11),
             text_color=TEXT_MUTED
-        ).pack(anchor="w")
+        ).pack(anchor="w", pady=(2, 0))
 
-        # Divider line
+        # Divider
         div = ctk.CTkFrame(self, fg_color=BORDER_COLOR, height=1)
-        div.pack(fill="x", padx=16, pady=(0, 14))
+        div.pack(fill="x", padx=16, pady=(12, 14))
 
-        # Navigation Category
-        ctk.CTkLabel(
-            self,
-            text="MAIN WORKFLOW",
-            font=ctk.CTkFont(size=10, weight="bold"),
-            text_color=TEXT_DIM
-        ).pack(anchor="w", padx=20, pady=(0, 6))
+        # Navigation Items
+        self._add_nav_item("overview", "🏠  Overview", "overview")
+        self._add_nav_item("render_queue", "📑  Render Queue", "render_queue")
+        self._add_nav_item("activity_logs", "📋  Activity Logs", "activity_logs")
+        self._add_nav_item("gpu_engine", "🎮  GPU & Engine", "gpu_engine")
+        self._add_nav_item("network", "🌐  Network", "network")
+        self._add_nav_item("settings", "⚙️  Settings", "settings")
 
-        # Nav Buttons (Vibrant clay cards)
-        self._add_nav_item("dashboard", "📊  Dashboard", "dashboard")
-        self._add_nav_item("render_job", "🎬  New Render Job", "render_job")
-        self._add_nav_item("active_job", "📡  Live Monitor", "active_job")
-
-        ctk.CTkLabel(
-            self,
-            text="SYSTEM & TOOLS",
-            font=ctk.CTkFont(size=10, weight="bold"),
-            text_color=TEXT_DIM
-        ).pack(anchor="w", padx=20, pady=(16, 6))
-
-        self._add_nav_item("benchmarks", "⚡  Benchmarks", "benchmarks")
-        self._add_nav_item("settings", "⚙️  Host & Settings", "settings")
-
-        # Bottom System Info Clay Card
-        info_card = ctk.CTkFrame(
+        # Bottom Server Status Indicator
+        status_card = ctk.CTkFrame(
             self,
             fg_color=BG_CARD,
             corner_radius=12,
             border_width=1,
             border_color=BORDER_COLOR
         )
-        info_card.pack(side="bottom", fill="x", padx=16, pady=20)
+        status_card.pack(side="bottom", fill="x", padx=16, pady=18)
 
         ctk.CTkLabel(
-            info_card,
-            text="ENGINE STATUS",
+            status_card,
+            text="SERVER STATUS",
             font=ctk.CTkFont(size=10, weight="bold"),
             text_color=TEXT_DIM
         ).pack(anchor="w", padx=14, pady=(10, 2))
 
-        self.lbl_engine_status = ctk.CTkLabel(
-            info_card,
-            text="● NVENC Ready",
-            font=ctk.CTkFont(size=12, weight="bold"),
+        self.lbl_server_status_dot = ctk.CTkLabel(
+            status_card,
+            text="● Running",
+            font=ctk.CTkFont(size=13, weight="bold"),
             text_color=ACCENT_GREEN
         )
-        self.lbl_engine_status.pack(anchor="w", padx=14, pady=(0, 10))
+        self.lbl_server_status_dot.pack(anchor="w", padx=14, pady=(0, 2))
 
-    def set_engine_status(self, is_nvenc: bool, text: str = "NVENC Ready"):
-        if is_nvenc:
-            self.lbl_engine_status.configure(text=f"● {text}", text_color=ACCENT_GREEN)
-        else:
-            self.lbl_engine_status.configure(text=f"● {text}", text_color=ACCENT_ORANGE)
+        import platform
+        os_name = f"{platform.system()} {platform.release()}"
+        ctk.CTkLabel(
+            status_card,
+            text=f"v1.0.0 • {os_name}",
+            font=ctk.CTkFont(size=10),
+            text_color=TEXT_MUTED
+        ).pack(anchor="w", padx=14, pady=(0, 10))
 
     def _add_nav_item(self, key: str, label: str, page_name: str):
         btn = ctk.CTkButton(
@@ -107,7 +96,7 @@ class SidebarNavigation(ctk.CTkFrame):
             text=label,
             anchor="w",
             font=ctk.CTkFont(size=13, weight="bold"),
-            height=44,
+            height=42,
             corner_radius=10,
             fg_color="transparent",
             text_color=TEXT_SECONDARY,

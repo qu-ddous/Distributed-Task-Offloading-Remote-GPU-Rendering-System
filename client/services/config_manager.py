@@ -12,7 +12,7 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     "default_bitrate": "5M",
     "default_preset": "p4",
     "output_dir": str(Path.home() / "Downloads"),
-    "allow_cpu_fallback": False
+    "allow_cpu_fallback": True
 }
 
 class ClientConfigManager:

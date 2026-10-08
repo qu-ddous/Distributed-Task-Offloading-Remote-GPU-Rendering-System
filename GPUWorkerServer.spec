@@ -1,30 +1,50 @@
 # -*- mode: python ; coding: utf-8 -*-
-import sys
-from pathlib import Path
-from PyInstaller.utils.hooks import collect_data_files, collect_submodules
+from PyInstaller.utils.hooks import collect_submodules, collect_data_files
 
 block_cipher = None
 
 # Collect CustomTkinter assets (themes, json fonts, etc.)
 datas = collect_data_files('customtkinter')
 datas += [
-    ('client/assets', 'client/assets'),
     ('shared', 'shared'),
+    ('server/.env.example', 'server'),
+    ('client/assets', 'client/assets'),
 ]
+datas += collect_data_files('imageio_ffmpeg')
 
 hiddenimports = [
     'customtkinter',
     'darkdetect',
     'PIL',
     'PIL.Image',
-    'httpx',
+    'uvicorn',
+    'uvicorn.logging',
+    'uvicorn.loops',
+    'uvicorn.loops.auto',
+    'uvicorn.protocols',
+    'uvicorn.protocols.http',
+    'uvicorn.protocols.http.auto',
+    'uvicorn.protocols.websockets',
+    'uvicorn.protocols.websockets.auto',
+    'fastapi',
     'websockets',
     'pydantic',
     'pydantic_settings',
+    'imageio_ffmpeg',
+    'psutil',
+    'aiofiles',
+    'multipart',
+    'server',
+    'server.app',
+    'server.app.main',
+    'server.app.server_state',
+    'server.app.services.connection_tracker',
+    'server.ui',
+    'server.ui.server_app',
 ]
 
 a = Analysis(
-    ['client/app.py'],
+    ['server_entrypoint.py'],
     pathex=['.'],
     binaries=[],
     datas=datas,
@@ -32,7 +52,7 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=['pytest', 'tkinter.test'],
+    excludes=['pytest'],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
     cipher=block_cipher,
@@ -48,14 +68,14 @@ exe = EXE(
     a.zipfiles,
     a.datas,
     [],
-    name='GPURenderStudio',
+    name='GPUWorkerServer',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
     upx_exclude=[],
     runtime_tmpdir=None,
-    console=False, # Windowed GUI app
+    console=False, # Pure Desktop GUI Application
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
@@ -63,4 +83,3 @@ exe = EXE(
     entitlements_file=None,
     icon='client/assets/icon.ico'
 )
-

@@ -17,10 +17,7 @@ async def health_check(x_api_token: str = Header(None)):
         )
 
     is_ff_avail, ff_ver, is_nvenc, encoders = SystemService.check_ffmpeg_capabilities()
-    gpu_detected, gpu_name = SystemService.detect_nvidia_gpu()
-    free_disk = SystemService.get_disk_free(str(settings.storage_path))
-    cpu_cores = SystemService.get_cpu_cores()
-
+    hw_data = SystemService.get_hardware_telemetry(str(settings.storage_path))
     active_count = sum(1 for j in job_manager.jobs.values() if j.status.value in ["queued", "rendering"])
 
     return HealthResponse(
@@ -33,10 +30,21 @@ async def health_check(x_api_token: str = Header(None)):
             supported_encoders=encoders
         ),
         hardware=HardwareInfo(
-            gpu_detected=gpu_detected,
-            gpu_name=gpu_name,
-            cpu_cores=cpu_cores,
-            disk_free_bytes=free_disk
+            hostname=hw_data["hostname"],
+            os_platform=hw_data["os_platform"],
+            cpu_model=hw_data["cpu_model"],
+            cpu_cores=hw_data["cpu_cores"],
+            cpu_percent=hw_data["cpu_percent"],
+            ram_total_gb=hw_data["ram_total_gb"],
+            ram_used_gb=hw_data["ram_used_gb"],
+            ram_percent=hw_data["ram_percent"],
+            disk_total_bytes=hw_data["disk_total_bytes"],
+            disk_free_bytes=hw_data["disk_free_bytes"],
+            gpu_detected=hw_data["gpu_detected"],
+            gpu_name=hw_data["gpu_name"],
+            gpu_vram_total_mb=hw_data["gpu_vram_total_mb"],
+            gpu_vram_used_mb=hw_data["gpu_vram_used_mb"],
+            gpu_util_percent=hw_data["gpu_util_percent"]
         ),
         limits=ServerLimits(
             max_upload_size_bytes=settings.MAX_UPLOAD_SIZE,

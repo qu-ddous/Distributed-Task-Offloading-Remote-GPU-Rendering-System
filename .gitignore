@@ -21,6 +21,8 @@ server/.env
 # Temporary render files and jobs storage
 server/storage/
 server/temp/
+dist/storage/
+storage/
 *.mp4
 *.mkv
 *.mov
@@ -32,9 +34,11 @@ server/temp/
 .coverage
 htmlcov/
 
-# Client local settings cache
+# Client and Server local settings cache
 client_settings.json
 client/client_settings.json
+server_settings.json
+dist/server_settings.json
 
 # IDE and OS
 .vscode/
@@ -44,3 +48,7 @@ client/client_settings.json
 Thumbs.db
 Desktop.ini
 .DS_Store
+
+# PyInstaller Build Artifacts & Large Binaries
+build/
+dist/

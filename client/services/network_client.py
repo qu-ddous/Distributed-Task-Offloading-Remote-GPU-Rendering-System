@@ -23,14 +23,14 @@ class NetworkClient:
             headers["X-API-Token"] = self.api_token
         return headers
 
-    def ping_and_health(self) -> Dict[str, Any]:
+    def ping_and_health(self, timeout: float = 3.0) -> Dict[str, Any]:
         """
         Synchronous ping & health check executed from a background thread.
         Returns dict with status, latency_ms, health_info or error.
         """
         start_time = time.time()
         try:
-            with httpx.Client(timeout=4.0) as client:
+            with httpx.Client(timeout=timeout) as client:
                 # 1. Ping
                 ping_resp = client.get(f"{self.base_url}/api/v1/ping")
                 latency_ms = round((time.time() - start_time) * 1000, 1)

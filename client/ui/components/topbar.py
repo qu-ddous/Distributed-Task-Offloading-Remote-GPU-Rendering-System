@@ -70,10 +70,11 @@ class TopbarHeader(ctk.CTkFrame):
     def set_title(self, title: str):
         self.lbl_page_title.configure(text=title)
 
-    def set_status(self, is_online: bool, latency: float = 0, protocol: str = "v1.0.0"):
+    def set_status(self, is_online: bool, latency: float = 0, host_info: str = ""):
         if is_online:
+            txt = f"● Connected ({host_info})" if host_info else "● Worker Online"
             self.pill_worker.configure(
-                text=f"● Worker Online ({protocol})",
+                text=txt,
                 text_color=ACCENT_GREEN,
                 fg_color="#D1FAE5"
             )
@@ -95,4 +96,5 @@ class TopbarHeader(ctk.CTkFrame):
                 text_color=TEXT_MUTED,
                 fg_color="#F1F5F9"
             )
+
 

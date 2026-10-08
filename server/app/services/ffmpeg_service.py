@@ -11,25 +11,40 @@ class FFmpegService:
     @staticmethod
     def get_video_duration(file_path: Path) -> Optional[float]:
         """
-        Uses ffprobe to extract total video duration in seconds.
+        Extract total video duration in seconds using ffprobe or ffmpeg.
         """
         ffprobe_bin = SystemService.get_ffprobe_path()
-        if not ffprobe_bin:
-            return None
+        if ffprobe_bin:
+            cmd = [
+                ffprobe_bin,
+                "-v", "error",
+                "-show_entries", "format=duration",
+                "-of", "default=noprint_wrappers=1:nokey=1",
+                str(file_path)
+            ]
+            try:
+                res = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+                if res.returncode == 0 and res.stdout.strip():
+                    return float(res.stdout.strip())
+            except Exception:
+                pass
 
-        cmd = [
-            ffprobe_bin,
-            "-v", "error",
-            "-show_entries", "format=duration",
-            "-of", "default=noprint_wrappers=1:nokey=1",
-            str(file_path)
-        ]
-        try:
-            res = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
-            if res.returncode == 0 and res.stdout.strip():
-                return float(res.stdout.strip())
-        except Exception:
-            pass
+        # Fallback to ffmpeg -i inspection
+        ffmpeg_bin = SystemService.get_ffmpeg_path()
+        if ffmpeg_bin:
+            try:
+                cmd = [ffmpeg_bin, "-i", str(file_path)]
+                res = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+                # ffmpeg prints media details to stderr
+                match = re.search(r"Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)", res.stderr)
+                if match:
+                    h = float(match.group(1))
+                    m = float(match.group(2))
+                    s = float(match.group(3))
+                    return h * 3600 + m * 60 + s
+            except Exception:
+                pass
+
         return None
 
     @staticmethod

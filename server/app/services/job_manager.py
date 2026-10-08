@@ -1,3 +1,5 @@
+import sys
+import shutil
 import asyncio
 import time
 import uuid
@@ -24,7 +26,8 @@ class Job:
         bitrate: str,
         preset: str,
         checksum: str,
-        allow_cpu_fallback: bool = False
+        allow_cpu_fallback: bool = False,
+        client_ip: str = "127.0.0.1"
     ):
         self.job_id = job_id
         self.input_filename = input_filename
@@ -35,6 +38,7 @@ class Job:
         self.preset = preset
         self.input_checksum = checksum
         self.allow_cpu_fallback = allow_cpu_fallback
+        self.client_ip = client_ip
 
         self.input_path = job_dir / "input" / input_filename
         self.output_path = job_dir / "output" / output_filename
@@ -74,7 +78,8 @@ class JobManager:
         preset: str,
         checksum: str,
         file_size: int,
-        allow_cpu_fallback: bool = False
+        allow_cpu_fallback: bool = False,
+        client_ip: str = "127.0.0.1"
     ) -> Job:
         job_id = f"job_{uuid.uuid4().hex[:12]}"
         job_dir = settings.storage_path / job_id
@@ -90,7 +95,8 @@ class JobManager:
             bitrate=bitrate,
             preset=preset,
             checksum=checksum,
-            allow_cpu_fallback=allow_cpu_fallback
+            allow_cpu_fallback=allow_cpu_fallback,
+            client_ip=client_ip
         )
 
         async with self.lock:
@@ -157,6 +163,13 @@ class JobManager:
 
             job.status = JobStatus.RENDERING
             job.start_time = time.time()
+
+            # Detect task type: Python script, Batch/Shell, or Video
+            ext = job.input_path.suffix.lower()
+            if ext in [".py", ".pyw", ".bat", ".cmd", ".ps1"]:
+                await self._run_script_worker(job)
+                return
+
             await self.broadcast(job.job_id, {
                 "type": "state",
                 "job_id": job.job_id,
@@ -324,6 +337,22 @@ class JobManager:
                     except Exception:
                         pass
 
+                # Sample live system telemetry periodically (every ~1 sec)
+                now_t = time.time()
+                if not hasattr(job, "_last_telem_t") or (now_t - getattr(job, "_last_telem_t", 0)) >= 1.0:
+                    setattr(job, "_last_telem_t", now_t)
+                    try:
+                        import psutil
+                        vm = psutil.virtual_memory()
+                        setattr(job, "_cached_telem", {
+                            "cpu_percent": psutil.cpu_percent(interval=None),
+                            "ram_percent": vm.percent,
+                            "ram_used_gb": round((vm.total - vm.available) / (1024 ** 3), 2),
+                            "ram_total_gb": round(vm.total / (1024 ** 3), 2)
+                        })
+                    except Exception:
+                        pass
+
                 await self.broadcast(job.job_id, {
                     "type": "progress",
                     "job_id": job.job_id,
@@ -332,7 +361,8 @@ class JobManager:
                     "elapsed_seconds": job.elapsed_seconds,
                     "eta_seconds": job.eta_seconds,
                     "speed": job.speed,
-                    "fps": job.current_fps
+                    "fps": job.current_fps,
+                    "server_telemetry": getattr(job, "_cached_telem", None)
                 })
 
     async def _stream_stderr(self, job: Job):
@@ -355,5 +385,147 @@ class JobManager:
                         "level": "INFO",
                         "message": text
                     })
+
+    async def _run_script_worker(self, job: Job):
+        """
+        Executes generic Python scripts, AI models, or batch commands directly
+        on the server hardware using 100% server CPU/GPU resources.
+        """
+        ext = job.input_path.suffix.lower()
+        is_python = ext in [".py", ".pyw"]
+        is_ps1 = ext == ".ps1"
+
+        if is_python:
+            cmd = [sys.executable, "-u", str(job.input_path)]
+            engine_desc = "Python 3 GPU/Compute Engine"
+        elif is_ps1:
+            cmd = ["powershell.exe", "-ExecutionPolicy", "Bypass", "-File", str(job.input_path)]
+            engine_desc = "PowerShell 5.1 Host"
+        else:
+            cmd = ["cmd.exe", "/c", str(job.input_path)]
+            engine_desc = "Windows Command Host"
+
+        await self.broadcast(job.job_id, {
+            "type": "state",
+            "job_id": job.job_id,
+            "status": JobStatus.RENDERING,
+            "message": f"Task execution started via {engine_desc}."
+        })
+        await self.broadcast(job.job_id, {
+            "type": "log",
+            "job_id": job.job_id,
+            "level": "INFO",
+            "message": f"Starting remote task execution: {' '.join(cmd)}"
+        })
+
+        try:
+            with open(job.log_path, "w", encoding="utf-8") as lf:
+                lf.write(f"=== Remote Task Offloading: {job.input_filename} ===\n")
+                lf.write(f"Engine: {engine_desc}\n")
+                lf.write(f"Execution Command: {' '.join(cmd)}\n\n")
+
+            job.process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=str(job.job_dir)
+            )
+
+            async def stream_reader(stream, is_stderr: bool = False):
+                with open(job.log_path, "a", encoding="utf-8") as lf:
+                    while True:
+                        line = await stream.readline()
+                        if not line:
+                            break
+                        text = line.decode("utf-8", errors="replace").strip()
+                        if text:
+                            lf.write(text + "\n")
+                            lf.flush()
+                            await self.broadcast(job.job_id, {
+                                "type": "log",
+                                "job_id": job.job_id,
+                                "level": "WARNING" if is_stderr else "INFO",
+                                "message": text
+                            })
+
+                            if job.start_time:
+                                job.elapsed_seconds = round(time.time() - job.start_time, 1)
+
+                            # Periodically sample system telemetry
+                            try:
+                                import psutil
+                                vm = psutil.virtual_memory()
+                                telem = {
+                                    "cpu_percent": psutil.cpu_percent(interval=None),
+                                    "ram_percent": vm.percent,
+                                    "ram_used_gb": round((vm.total - vm.available) / (1024 ** 3), 2),
+                                    "ram_total_gb": round(vm.total / (1024 ** 3), 2)
+                                }
+                            except Exception:
+                                telem = None
+
+                            # Pulse progress smoothly
+                            pulse_pct = min(96.0, max(5.0, job.elapsed_seconds * 3.0))
+                            await self.broadcast(job.job_id, {
+                                "type": "progress",
+                                "job_id": job.job_id,
+                                "status": job.status,
+                                "percent": pulse_pct,
+                                "elapsed_seconds": job.elapsed_seconds,
+                                "eta_seconds": None,
+                                "speed": "100% Server Compute",
+                                "fps": None,
+                                "server_telemetry": telem
+                            })
+
+            t_stdout = asyncio.create_task(stream_reader(job.process.stdout, False))
+            t_stderr = asyncio.create_task(stream_reader(job.process.stderr, True))
+            await asyncio.gather(t_stdout, t_stderr)
+            await job.process.wait()
+
+            if job._cancelled:
+                job.status = JobStatus.CANCELLED
+                return
+
+            if job.process.returncode == 0:
+                # If script generated an output file directly, use it; otherwise provide the log as output
+                if not job.output_path.exists() or job.output_path.stat().st_size == 0:
+                    shutil.copy(job.log_path, job.output_path)
+
+                job.status = JobStatus.COMPLETED
+                job.finish_time = time.time()
+                job.progress_percent = 100.0
+                job.output_size_bytes = job.output_path.stat().st_size
+                job.output_checksum = compute_file_sha256(job.output_path)
+                total_time = round(job.finish_time - job.start_time, 2)
+
+                await self.broadcast(job.job_id, {
+                    "type": "state",
+                    "job_id": job.job_id,
+                    "status": JobStatus.COMPLETED,
+                    "output_checksum": job.output_checksum,
+                    "output_size_bytes": job.output_size_bytes,
+                    "total_render_seconds": total_time,
+                    "message": f"Task executed successfully in {total_time}s."
+                })
+            else:
+                job.status = JobStatus.FAILED
+                job.error_message = f"Process exited with non-zero exit code {job.process.returncode}."
+                await self.broadcast(job.job_id, {
+                    "type": "error",
+                    "job_id": job.job_id,
+                    "status": JobStatus.FAILED,
+                    "error": job.error_message
+                })
+        except Exception as e:
+            logger.exception("Error executing remote script task")
+            job.status = JobStatus.FAILED
+            job.error_message = str(e)
+            await self.broadcast(job.job_id, {
+                "type": "error",
+                "job_id": job.job_id,
+                "status": JobStatus.FAILED,
+                "error": str(e)
+            })
 
 job_manager = JobManager()

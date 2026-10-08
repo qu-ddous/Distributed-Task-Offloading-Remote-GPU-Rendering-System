@@ -2,7 +2,7 @@ import os
 import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
-from fastapi import APIRouter, UploadFile, File, Form, Header, HTTPException, status
+from fastapi import APIRouter, UploadFile, File, Form, Header, HTTPException, Request, status
 from fastapi.responses import FileResponse
 from shared.schemas import JobCreateResponse, JobStatusResponse, CancelResponse
 from server.app.services.job_manager import job_manager
@@ -18,21 +18,31 @@ def verify_token(x_api_token: str):
             detail="Invalid or missing X-API-Token header."
         )
 
+from typing import Union
+
 @router.post("", response_model=JobCreateResponse, status_code=status.HTTP_201_CREATED)
 async def create_job(
+    request: Request,
     file: UploadFile = File(...),
     checksum: str = Form(...),
     resolution: str = Form("Original"),
     bitrate: str = Form("5M"),
     preset: str = Form("p4"),
     output_filename: str = Form(...),
-    allow_cpu_fallback: bool = Form(False),
+    allow_cpu_fallback: Union[bool, str] = Form(True),
     x_api_token: str = Header(None)
 ):
     verify_token(x_api_token)
 
+    # Normalize allow_cpu_fallback boolean
+    if isinstance(allow_cpu_fallback, str):
+        is_fallback_allowed = allow_cpu_fallback.strip().lower() in ["true", "1", "yes"]
+    else:
+        is_fallback_allowed = bool(allow_cpu_fallback)
+
     clean_input_name = sanitize_filename(file.filename or "input.mp4")
     clean_output_name = sanitize_filename(output_filename or f"rendered_{clean_input_name}")
+    client_ip = request.client.host if request.client else "127.0.0.1"
 
     # Prepare job
     job = await job_manager.create_job(
@@ -43,7 +53,8 @@ async def create_job(
         preset=preset,
         checksum=checksum,
         file_size=0,
-        allow_cpu_fallback=allow_cpu_fallback
+        allow_cpu_fallback=is_fallback_allowed,
+        client_ip=client_ip
     )
 
     # Stream file to disk and compute sha256

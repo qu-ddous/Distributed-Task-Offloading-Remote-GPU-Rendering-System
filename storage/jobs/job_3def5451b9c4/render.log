@@ -1,2 +1,0 @@
-FFmpeg command: ffmpeg -y -i C:\Users\mqudd\Documents\GitHub\Distributed-Task-Offloading-Remote-GPU-Rendering-System\storage\jobs\job_3def5451b9c4\input\Tere_Ik_Chashm_e_Rehmat_Se_Tera_Bimar_Behtar_Hai_360p__1_.mp4 -vf scale=-2:720 -c:v libx264 -preset fast -b:v 8M -maxrate 8M -bufsize 16M -c:a aac -b:a 192k -progress pipe:1 -nostats C:\Users\mqudd\Documents\GitHub\Distributed-Task-Offloading-Remote-GPU-Rendering-System\storage\jobs\job_3def5451b9c4\output\Tere_Ik_Chashm_e_Rehmat_Se_Tera_Bimar_Behtar_Hai_360p__1__remote_720p.mp4
-

@@ -53,10 +53,21 @@ class FFmpegInfo(BaseModel):
     supported_encoders: List[str] = Field(default_factory=list)
 
 class HardwareInfo(BaseModel):
+    hostname: str = "Unknown Node"
+    os_platform: str = "Windows"
+    cpu_model: str = "Generic CPU"
+    cpu_cores: int = 1
+    cpu_percent: float = 0.0
+    ram_total_gb: float = 0.0
+    ram_used_gb: float = 0.0
+    ram_percent: float = 0.0
+    disk_total_bytes: int = 0
+    disk_free_bytes: int = 0
     gpu_detected: bool = False
     gpu_name: Optional[str] = None
-    cpu_cores: int = 1
-    disk_free_bytes: int = 0
+    gpu_vram_total_mb: Optional[int] = None
+    gpu_vram_used_mb: Optional[int] = None
+    gpu_util_percent: Optional[float] = None
 
 class ServerLimits(BaseModel):
     max_upload_size_bytes: int
