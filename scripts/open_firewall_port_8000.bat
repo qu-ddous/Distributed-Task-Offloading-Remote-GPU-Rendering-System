@@ -1,9 +1,9 @@
 @echo off
 :: Self-elevate to Administrator if not already elevated
->nul 2>&1 "%SYSTEMROOT%\system32\cacls.exe" "%SYSTEMROOT%\system32\config\system"
-if '%errorlevel%' NEQ '0' (
+net session >nul 2>&1
+if %errorlevel% neq 0 (
     echo Requesting Administrator privileges to configure Windows Firewall...
-    powershell -Command "Start-Process '%~f0' -Verb RunAs"
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process cmd -ArgumentList '/k `\"%~f0`\"' -Verb RunAs"
     exit /b
 )
 

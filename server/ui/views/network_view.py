@@ -258,10 +258,23 @@ class NetworkView(ctk.CTkScrollableFrame):
         hdr_row.pack(fill="x", pady=(0, 8))
         ctk.CTkLabel(hdr_row, text="🔒  Firewall & Network Adapters", font=ctk.CTkFont(size=14, weight="bold"), text_color=TEXT_PRIMARY).pack(side="left")
 
+        # 1-Click Auto Cat6 Setup Button
+        btn_cat6 = ctk.CTkButton(
+            hdr_row,
+            text="⚡ Auto-Configure Cat6 (Host: 192.168.2.1)",
+            font=ctk.CTkFont(size=11, weight="bold"),
+            height=28,
+            fg_color=ACCENT_BLUE,
+            hover_color=ACCENT_BLUE_HOVER,
+            corner_radius=8,
+            command=self._auto_setup_cat6_host
+        )
+        btn_cat6.pack(side="right", padx=(6, 0))
+
         # 1-Click Allow Firewall Button
         btn_fw = ctk.CTkButton(
             hdr_row,
-            text="🛡️ Allow Port 8000 in Windows Firewall",
+            text="🛡️ Allow Port 8000 in Firewall",
             font=ctk.CTkFont(size=11, weight="bold"),
             height=28,
             fg_color="#0D9488",
@@ -275,7 +288,7 @@ class NetworkView(ctk.CTkScrollableFrame):
         f_row.pack(fill="x", pady=(2, 8))
 
         ctk.CTkLabel(f_row, text=f"● Port {settings.PORT} (TCP): Daemon Listening", font=ctk.CTkFont(size=12, weight="bold"), text_color=ACCENT_GREEN).pack(side="left", padx=(0, 20))
-        self.lbl_fw_status = ctk.CTkLabel(f_row, text="● Windows Firewall: Click button above if remote client times out", font=ctk.CTkFont(size=11), text_color=TEXT_MUTED)
+        self.lbl_fw_status = ctk.CTkLabel(f_row, text="● Status: Ready for connections", font=ctk.CTkFont(size=11), text_color=TEXT_MUTED)
         self.lbl_fw_status.pack(side="left")
 
         # Container for detected adapters
@@ -300,6 +313,22 @@ class NetworkView(ctk.CTkScrollableFrame):
             padx=12,
             pady=8
         ).pack(anchor="w")
+
+    def _auto_setup_cat6_host(self):
+        import subprocess
+        try:
+            ps_code = (
+                "$ads = @(Get-NetAdapter -ErrorAction SilentlyContinue | Where-Object { $_.InterfaceAlias -notmatch 'Wi-Fi|Wireless|Virtual|Loopback|Bluetooth' }); "
+                "if (-not $ads) { $name = 'Ethernet' } else { $target = $ads | Where-Object { $_.Status -eq 'Up' } | Select-Object -First 1; if (-not $target) { $target = $ads[0] }; $name = $target.InterfaceAlias }; "
+                "netsh interface ipv4 set address name=\\\"$name\\\" static 192.168.2.1 255.255.255.0; "
+                "netsh advfirewall firewall add rule name=\\\"GPU Worker Server Port 8000\\\" dir=in action=allow protocol=TCP localport=8000 profile=any"
+            )
+            cmd = f'Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -Command \\"{ps_code}\\"" -Verb RunAs'
+            subprocess.Popen(["powershell", "-NoProfile", "-Command", cmd])
+            self.lbl_fw_status.configure(text="✔ Configuring Host Cat6 IP (192.168.2.1) & Firewall...", text_color=ACCENT_GREEN)
+            self.after(2500, self.on_page_shown)
+        except Exception as e:
+            self.lbl_fw_status.configure(text=f"Error: {e}", text_color=ACCENT_RED)
 
     def _open_firewall_port_8000(self):
         import subprocess

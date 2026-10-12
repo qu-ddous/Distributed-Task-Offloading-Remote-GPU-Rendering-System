@@ -87,9 +87,21 @@ class SettingsView(ctk.CTkScrollableFrame):
         )
         self.btn_disconnect.pack(side="left", padx=(0, 8))
 
+        self.btn_auto_cat6 = ctk.CTkButton(
+            act_row,
+            text="⚡  Auto-Configure Cat6 (192.168.2.2)",
+            command=self._on_auto_cat6_clicked,
+            fg_color="#0D9488",
+            hover_color="#0F766E",
+            corner_radius=10,
+            height=38,
+            font=ctk.CTkFont(size=12, weight="bold")
+        )
+        self.btn_auto_cat6.pack(side="left", padx=(0, 8))
+
         self.btn_reset = ctk.CTkButton(
             act_row,
-            text="🗑️  Reset Connection",
+            text="🗑️  Reset",
             command=self._on_reset_connection_clicked,
             fg_color="#F1F5F9",
             hover_color="#E2E8F0",
@@ -226,6 +238,29 @@ class SettingsView(ctk.CTkScrollableFrame):
         self.app.disconnect_server()
         self._update_badge(False)
         messagebox.showinfo("Disconnected", "Server disconnected successfully. Client Studio is now in Offline mode.")
+
+    def _on_auto_cat6_clicked(self):
+        import subprocess
+        try:
+            ps_code = (
+                "$ads = @(Get-NetAdapter -ErrorAction SilentlyContinue | Where-Object { $_.InterfaceAlias -notmatch 'Wi-Fi|Wireless|Virtual|Loopback|Bluetooth' }); "
+                "if (-not $ads) { $name = 'Ethernet' } else { $target = $ads | Where-Object { $_.Status -eq 'Up' } | Select-Object -First 1; if (-not $target) { $target = $ads[0] }; $name = $target.InterfaceAlias }; "
+                "netsh interface ipv4 set address name=\\\"$name\\\" static 192.168.2.2 255.255.255.0"
+            )
+            cmd = f'Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -Command \\"{ps_code}\\"" -Verb RunAs'
+            subprocess.Popen(["powershell", "-NoProfile", "-Command", cmd])
+            self.entry_host.delete(0, "end")
+            self.entry_host.insert(0, "192.168.2.1")
+            self.entry_port.delete(0, "end")
+            self.entry_port.insert(0, "8000")
+            messagebox.showinfo(
+                "Cat6 Auto-Configuration",
+                "Client IP (192.168.2.2) configuration has been requested via Administrator prompt.\n\n"
+                "Worker Host address has been set to: 192.168.2.1:8000\n\n"
+                "Once the prompt is accepted, click '🔄 Test & Connect' to verify."
+            )
+        except Exception as e:
+            messagebox.showerror("Error", f"Could not auto-configure IP: {e}")
 
     def _on_reset_connection_clicked(self):
         self.entry_host.delete(0, "end")
