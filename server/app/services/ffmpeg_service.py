@@ -54,10 +54,11 @@ class FFmpegService:
         resolution: str = "Original",
         bitrate: str = "5M",
         preset: str = "p4",
-        use_nvenc: bool = True
+        use_nvenc: bool = True,
+        encoder: Optional[str] = None
     ) -> List[str]:
         """
-        Constructs safe FFmpeg command argument list.
+        Constructs safe FFmpeg command argument list across NVIDIA, Intel, and AMD hardware encoders.
         Never uses shell=True.
         """
         ffmpeg_bin = SystemService.get_ffmpeg_path() or "ffmpeg"
@@ -86,7 +87,27 @@ class FFmpegService:
             cmd.extend(["-vf", scale_filter])
 
         # Encoder selection
-        if use_nvenc:
+        if encoder:
+            if encoder == "h264_nvenc":
+                cmd.extend(["-c:v", "h264_nvenc", "-preset", str(preset)])
+            elif encoder == "h264_qsv":
+                qsv_preset = "veryfast" if preset in ["p1", "p2", "fast"] else "medium"
+                cmd.extend(["-c:v", "h264_qsv", "-preset", qsv_preset])
+            elif encoder == "h264_amf":
+                amf_usage = "speed" if preset in ["p1", "p2", "fast"] else "transcoding"
+                cmd.extend(["-c:v", "h264_amf", "-usage", amf_usage])
+            elif encoder == "h264_mf":
+                cmd.extend(["-c:v", "h264_mf"])
+            elif encoder == "libx264":
+                cpu_preset = "medium"
+                if preset in ["p1", "p2", "fast"]:
+                    cpu_preset = "fast"
+                elif preset in ["p6", "p7", "slow"]:
+                    cpu_preset = "slow"
+                cmd.extend(["-c:v", "libx264", "-preset", cpu_preset])
+            else:
+                cmd.extend(["-c:v", encoder])
+        elif use_nvenc:
             cmd.extend(["-c:v", "h264_nvenc"])
             # Validate NVENC preset
             cmd.extend(["-preset", str(preset)])

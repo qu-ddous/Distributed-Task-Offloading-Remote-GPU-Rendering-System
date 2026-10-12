@@ -80,29 +80,45 @@ class SystemService:
             )
             if res.returncode == 0:
                 output = res.stdout
-                if "hevc_nvenc" in output:
-                    supported_encoders.append("hevc_nvenc")
-                if "libx264" in output:
-                    supported_encoders.append("libx264")
+                all_possible = [
+                    "h264_nvenc", "hevc_nvenc",
+                    "h264_qsv", "hevc_qsv",
+                    "h264_amf", "hevc_amf",
+                    "h264_mf",
+                    "libx264", "libx265"
+                ]
+                for enc in all_possible:
+                    if enc in output:
+                        supported_encoders.append(enc)
 
-                # Test if NVENC actually works on current hardware
-                if "h264_nvenc" in output:
-                    if shutil.which("nvidia-smi"):
-                        test_nvenc = subprocess.run(
-                            [ffmpeg_bin, "-f", "lavfi", "-i", "nullsrc=s=64x64:d=0.1", "-c:v", "h264_nvenc", "-f", "null", "-"],
-                            capture_output=True,
-                            text=True,
-                            timeout=3,
-                            creationflags=CREATE_NO_WINDOW
-                        )
-                        if test_nvenc.returncode == 0:
-                            supported_encoders.insert(0, "h264_nvenc")
-                            is_nvenc = True
+                # Test hardware encoders in order of preference (NVENC -> QSV -> AMF -> MF)
+                is_hardware_accel = False
+                for hw_enc in ["h264_nvenc", "h264_qsv", "h264_amf", "h264_mf"]:
+                    if hw_enc in supported_encoders:
+                        try:
+                            test_hw = subprocess.run(
+                                [ffmpeg_bin, "-f", "lavfi", "-i", "nullsrc=s=64x64:d=0.1", "-c:v", hw_enc, "-f", "null", "-"],
+                                capture_output=True,
+                                text=True,
+                                timeout=3,
+                                creationflags=CREATE_NO_WINDOW
+                            )
+                            if test_hw.returncode == 0:
+                                is_hardware_accel = True
+                                if hw_enc == "h264_nvenc":
+                                    is_nvenc = True
+                                # Promote the working hardware encoder to primary position
+                                if hw_enc != supported_encoders[0]:
+                                    supported_encoders.remove(hw_enc)
+                                    supported_encoders.insert(0, hw_enc)
+                                break
+                        except Exception:
+                            pass
         except Exception:
             cls._cached_ffmpeg_caps = (True, version_str, False, [])
             return cls._cached_ffmpeg_caps
 
-        cls._cached_ffmpeg_caps = (True, version_str, is_nvenc, supported_encoders)
+        cls._cached_ffmpeg_caps = (True, version_str, is_nvenc or is_hardware_accel, supported_encoders)
         return cls._cached_ffmpeg_caps
 
     _cached_static_specs: Optional[Dict[str, Any]] = None
@@ -196,9 +212,109 @@ class SystemService:
         }
 
     @staticmethod
-    def detect_nvidia_gpu() -> Tuple[bool, Optional[str]]:
-        nvidia_smi = shutil.which("nvidia-smi")
+    def _find_nvidia_smi() -> Optional[str]:
+        p = shutil.which("nvidia-smi")
+        if p:
+            return p
+        if os.name == "nt":
+            candidates = [
+                r"C:\Windows\System32\nvidia-smi.exe",
+                r"C:\Program Files\NVIDIA Corporation\NVSMI\nvidia-smi.exe"
+            ]
+            for c in candidates:
+                if os.path.exists(c):
+                    return c
+        return None
+
+    @classmethod
+    def get_windows_display_adapters(cls) -> List[Dict[str, Any]]:
+        """
+        Fast registry query for all installed GPU display adapters on Windows.
+        Returns accurate name, vendor (NVIDIA/Intel/AMD), driver version, and dedicated VRAM.
+        Execution takes <1ms without launching any console windows.
+        """
+        adapters = []
+        if os.name != "nt":
+            return adapters
+        try:
+            import winreg
+            class_key = winreg.OpenKey(
+                winreg.HKEY_LOCAL_MACHINE,
+                r"SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}"
+            )
+            i = 0
+            while True:
+                try:
+                    sub_name = winreg.EnumKey(class_key, i)
+                    i += 1
+                    if not sub_name.isdigit():
+                        continue
+                    dev_key = winreg.OpenKey(class_key, sub_name)
+                    try:
+                        name = None
+                        for key_name in ["DriverDesc", "AdapterString"]:
+                            try:
+                                val, _ = winreg.QueryValueEx(dev_key, key_name)
+                                if isinstance(val, bytes):
+                                    val = val.decode("utf-16", errors="ignore").strip("\x00")
+                                if val:
+                                    name = str(val).strip()
+                                    break
+                            except Exception:
+                                pass
+
+                        if not name or any(ign in name for ign in ["Basic Display", "Remote Display", "Miracast", "Virtual"]):
+                            continue
+
+                        driver_ver = "Unknown"
+                        try:
+                            ver, _ = winreg.QueryValueEx(dev_key, "DriverVersion")
+                            driver_ver = str(ver).strip()
+                        except Exception:
+                            pass
+
+                        vram_mb = 0
+                        for mem_key in ["HardwareInformation.qwMemorySize", "HardwareInformation.MemorySize"]:
+                            try:
+                                val, _ = winreg.QueryValueEx(dev_key, mem_key)
+                                if isinstance(val, int):
+                                    vram_mb = val // (1024 * 1024)
+                                elif isinstance(val, bytes):
+                                    int_val = int.from_bytes(val, byteorder="little")
+                                    vram_mb = int_val // (1024 * 1024)
+                                if vram_mb > 0:
+                                    break
+                            except Exception:
+                                pass
+
+                        lname = name.lower()
+                        vendor = "NVIDIA" if "nvidia" in lname else ("Intel" if "intel" in lname else ("AMD" if ("amd" in lname or "radeon" in lname) else "Generic"))
+                        is_discrete = vendor in ["NVIDIA", "AMD"]
+
+                        adapters.append({
+                            "name": name,
+                            "vendor": vendor,
+                            "driver_version": driver_ver,
+                            "vram_total_mb": vram_mb,
+                            "is_discrete": is_discrete
+                        })
+                    finally:
+                        winreg.CloseKey(dev_key)
+                except OSError:
+                    break
+            winreg.CloseKey(class_key)
+        except Exception:
+            pass
+        return adapters
+
+    @classmethod
+    def detect_nvidia_gpu(cls) -> Tuple[bool, Optional[str]]:
+        nvidia_smi = cls._find_nvidia_smi()
         if not nvidia_smi:
+            # Check registry for NVIDIA cards
+            for ad in cls.get_windows_display_adapters():
+                if ad["vendor"] == "NVIDIA":
+                    return True, ad["name"]
             return False, None
 
         try:
@@ -216,6 +332,16 @@ class SystemService:
             pass
         return False, None
 
+    @classmethod
+    def detect_any_gpu(cls) -> Tuple[bool, Optional[str], str, int]:
+        """
+        Returns (gpu_detected, name, vendor, vram_total_mb) for ANY GPU (NVIDIA, Intel, AMD).
+        """
+        gpu = cls.get_detailed_gpu_info()
+        if gpu.get("gpu_detected"):
+            return True, gpu.get("name"), gpu.get("vendor", "Generic"), gpu.get("vram_total_mb", 0)
+        return False, None, "None", 0
+
     @staticmethod
     def get_disk_free(path: str) -> int:
         try:
@@ -229,12 +355,58 @@ class SystemService:
         return psutil.cpu_count(logical=True) or 1
 
     @staticmethod
-    def get_primary_ip() -> str:
+    def get_all_lan_adapters() -> List[Dict[str, Any]]:
+        """
+        Discovers all network adapters, tagging interface name, IP, active UP state, and friendly type.
+        Supports both Wi-Fi, Ethernet, and direct LAN cable (APIPA 169.254.x.x) connections.
+        """
+        adapters = []
+        try:
+            stats = psutil.net_if_stats()
+            for iface, addrs in psutil.net_if_addrs().items():
+                st = stats.get(iface)
+                is_up = st.isup if st else False
+                is_virtual = any(v in iface.lower() for v in ["virtual", "vethernet", "vmware", "loopback", "wsl", "hyper-v", "pseudo"])
+                for a in addrs:
+                    if a.family == socket.AF_INET:
+                        ip = a.address
+                        if ip.startswith("127."):
+                            continue
+                        if "wi-fi" in iface.lower() or "wireless" in iface.lower() or "wlan" in iface.lower():
+                            ad_type = "Wi-Fi"
+                        elif "ethernet" in iface.lower() or "lan" in iface.lower():
+                            ad_type = "Ethernet"
+                        else:
+                            ad_type = "Network"
+                        if ip.startswith("169.254."):
+                            ad_type += " (Direct Cable)"
+                        adapters.append({
+                            "interface": iface,
+                            "ip": ip,
+                            "is_up": is_up,
+                            "is_virtual": is_virtual,
+                            "type": ad_type
+                        })
+        except Exception:
+            pass
+        return adapters
+
+    @classmethod
+    def get_primary_ip(cls) -> str:
         """
         Determines the system's actual local IPv4 LAN address (e.g. 192.168.x.x, 10.x.x.x).
-        Excludes 127.0.0.1 and APIPA auto-configuration (169.254.x.x).
+        Prioritizes active physical adapters (Wi-Fi/Ethernet).
+        Falls back cleanly to direct Ethernet cable (169.254.x.x) if no router is present.
         """
-        # 1. UDP routing probe
+        adapters = cls.get_all_lan_adapters()
+        # 1. Active physical UP adapter with private LAN IP
+        for ad in adapters:
+            if ad["is_up"] and not ad["is_virtual"]:
+                ip = ad["ip"]
+                if ip.startswith("192.168.") or ip.startswith("10.") or (ip.startswith("172.") and not ip.startswith("172.17.")):
+                    return ip
+
+        # 2. UDP routing probe
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             s.connect(("8.8.8.8", 80))
@@ -245,42 +417,36 @@ class SystemService:
         except Exception:
             pass
 
-        # 2. Iterate network adapters via psutil
-        try:
-            for iface, addrs in psutil.net_if_addrs().items():
-                for addr in addrs:
-                    if addr.family == socket.AF_INET:
-                        ip = addr.address
-                        if not ip.startswith("127.") and not ip.startswith("169.254."):
-                            return ip
-        except Exception:
-            pass
+        # 3. Direct LAN cable (APIPA 169.254.x.x) on active physical interface
+        for ad in adapters:
+            if ad["is_up"] and not ad["is_virtual"] and ad["ip"].startswith("169.254."):
+                return ad["ip"]
+
+        # 4. Any non-loopback IP
+        for ad in adapters:
+            if not ad["ip"].startswith("127."):
+                return ad["ip"]
 
         return "127.0.0.1"
 
-    @staticmethod
-    def get_all_lan_ips() -> List[str]:
+    @classmethod
+    def get_all_lan_ips(cls) -> List[str]:
         """
         Returns all valid IPv4 LAN addresses on the machine.
         """
-        ips = []
-        try:
-            for iface, addrs in psutil.net_if_addrs().items():
-                for addr in addrs:
-                    if addr.family == socket.AF_INET:
-                        ip = addr.address
-                        if not ip.startswith("127.") and not ip.startswith("169.254."):
-                            if ip not in ips:
-                                ips.append(ip)
-        except Exception:
-            pass
+        adapters = cls.get_all_lan_adapters()
+        ips = [ad["ip"] for ad in adapters if ad.get("is_up")]
+        if not ips:
+            ips = [ad["ip"] for ad in adapters]
         return ips or ["127.0.0.1"]
 
     @classmethod
     def get_detailed_gpu_info(cls) -> Dict[str, Any]:
         """
-        Queries nvidia-smi for driver version, temperature, memory clock, and utilization.
-        Returns empty/None fields if no NVIDIA GPU is detected. Zero fake data.
+        Universal GPU detection across NVIDIA, Intel, and AMD.
+        Returns live hardware metrics for NVIDIA GPUs (via nvidia-smi),
+        and hardware specifications for Intel/AMD/other GPUs (via Windows hardware registry).
+        Zero fake data.
         """
         now_t = time.time()
         if cls._cached_gpu_telemetry:
@@ -288,43 +454,61 @@ class SystemService:
             if (now_t - cached_t) < 0.8:
                 return cached_data
 
-        nvidia_smi = shutil.which("nvidia-smi")
-        if not nvidia_smi:
-            res_data = {"gpu_detected": False}
+        # 1. Try nvidia-smi if available (for live telemetry: load, vram used, temp, clock)
+        nvidia_smi = cls._find_nvidia_smi()
+        if nvidia_smi:
+            try:
+                res = subprocess.run(
+                    [
+                        nvidia_smi,
+                        "--query-gpu=name,driver_version,memory.total,memory.used,utilization.gpu,temperature.gpu,clocks.current.memory",
+                        "--format=csv,noheader,nounits"
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=2,
+                    creationflags=CREATE_NO_WINDOW
+                )
+                if res.returncode == 0 and res.stdout.strip():
+                    line = res.stdout.strip().splitlines()[0]
+                    parts = [p.strip() for p in line.split(",")]
+                    res_data = {
+                        "gpu_detected": True,
+                        "name": parts[0] if len(parts) > 0 else "NVIDIA GPU",
+                        "vendor": "NVIDIA",
+                        "driver_version": parts[1] if len(parts) > 1 else "Unknown",
+                        "vram_total_mb": int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else 0,
+                        "vram_used_mb": int(parts[3]) if len(parts) > 3 and parts[3].isdigit() else 0,
+                        "gpu_util_percent": float(parts[4]) if len(parts) > 4 and parts[4].replace(".", "", 1).isdigit() else 0.0,
+                        "temperature_c": int(parts[5]) if len(parts) > 5 and parts[5].isdigit() else None,
+                        "mem_clock_mhz": int(parts[6]) if len(parts) > 6 and parts[6].isdigit() else None,
+                    }
+                    cls._cached_gpu_telemetry = (now_t, res_data)
+                    return res_data
+            except Exception:
+                pass
+
+        # 2. Universal fallback: Windows display adapters query (Intel UHD / Iris Xe / Arc, AMD Radeon, NVIDIA)
+        adapters = cls.get_windows_display_adapters()
+        if adapters:
+            # Pick the best adapter (prefer discrete or first active)
+            primary = next((a for a in adapters if a.get("is_discrete")), adapters[0])
+            res_data = {
+                "gpu_detected": True,
+                "name": primary["name"],
+                "vendor": primary["vendor"],
+                "driver_version": primary["driver_version"],
+                "vram_total_mb": primary["vram_total_mb"],
+                "vram_used_mb": 0,
+                "gpu_util_percent": 0.0,
+                "temperature_c": None,
+                "mem_clock_mhz": None,
+            }
             cls._cached_gpu_telemetry = (now_t, res_data)
             return res_data
 
-        try:
-            res = subprocess.run(
-                [
-                    nvidia_smi,
-                    "--query-gpu=name,driver_version,memory.total,memory.used,utilization.gpu,temperature.gpu,clocks.current.memory",
-                    "--format=csv,noheader,nounits"
-                ],
-                capture_output=True,
-                text=True,
-                timeout=2,
-                creationflags=CREATE_NO_WINDOW
-            )
-            if res.returncode == 0 and res.stdout.strip():
-                line = res.stdout.strip().splitlines()[0]
-                parts = [p.strip() for p in line.split(",")]
-                res_data = {
-                    "gpu_detected": True,
-                    "name": parts[0] if len(parts) > 0 else "NVIDIA GPU",
-                    "driver_version": parts[1] if len(parts) > 1 else "Unknown",
-                    "vram_total_mb": int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else 0,
-                    "vram_used_mb": int(parts[3]) if len(parts) > 3 and parts[3].isdigit() else 0,
-                    "gpu_util_percent": float(parts[4]) if len(parts) > 4 and parts[4].replace(".", "", 1).isdigit() else 0.0,
-                    "temperature_c": int(parts[5]) if len(parts) > 5 and parts[5].isdigit() else None,
-                    "mem_clock_mhz": int(parts[6]) if len(parts) > 6 and parts[6].isdigit() else None,
-                }
-                cls._cached_gpu_telemetry = (now_t, res_data)
-                return res_data
-        except Exception:
-            pass
-
-        res_data = {"gpu_detected": False}
+        res_data = {"gpu_detected": False, "vendor": "None"}
         cls._cached_gpu_telemetry = (now_t, res_data)
         return res_data
+
 

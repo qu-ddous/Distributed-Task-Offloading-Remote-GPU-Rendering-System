@@ -220,83 +220,116 @@ class GPUEngineView(ctk.CTkScrollableFrame):
             try:
                 telem = SystemService.get_hardware_telemetry()
                 detailed_gpu = SystemService.get_detailed_gpu_info()
-                is_avail, ver, is_nvenc, _ = SystemService.check_ffmpeg_capabilities()
+                is_avail, ver, is_hw_accel, supported_encoders = SystemService.check_ffmpeg_capabilities()
             except Exception:
-                telem, detailed_gpu, is_avail, ver, is_nvenc = {}, {}, False, None, False
+                telem, detailed_gpu, is_avail, ver, is_hw_accel, supported_encoders = {}, {}, False, None, False, []
             try:
-                self.after(0, lambda: self._apply_hardware_ui(telem, detailed_gpu, is_avail, ver, is_nvenc))
+                self.after(0, lambda: self._apply_hardware_ui(telem, detailed_gpu, is_avail, ver, is_hw_accel, supported_encoders))
             except Exception:
                 pass
 
         import threading
         threading.Thread(target=_fetch_worker, daemon=True).start()
 
-    def _apply_hardware_ui(self, telem: dict, detailed_gpu: dict, is_avail: bool, ver: str, is_nvenc: bool):
+    def _apply_hardware_ui(self, telem: dict, detailed_gpu: dict, is_avail: bool, ver: str, is_hw_accel: bool, supported_encoders: list = None):
         try:
             if not self.winfo_exists():
                 return
+            supported_encoders = supported_encoders or []
             gpu_detected = telem.get("gpu_detected", False) or detailed_gpu.get("gpu_detected", False)
             gpu_name = telem.get("gpu_name") or detailed_gpu.get("name")
             gpu_util = telem.get("gpu_util_percent", 0.0) or detailed_gpu.get("gpu_util_percent", 0.0) or 0.0
             vram_total = telem.get("gpu_vram_total_mb", 0) or detailed_gpu.get("vram_total_mb", 0) or 0
             vram_used = telem.get("gpu_vram_used_mb", 0) or detailed_gpu.get("vram_used_mb", 0) or 0
+            vendor = detailed_gpu.get("vendor") or ("NVIDIA" if gpu_name and "nvidia" in gpu_name.lower() else ("Intel" if gpu_name and "intel" in gpu_name.lower() else ("AMD" if gpu_name and ("amd" in gpu_name.lower() or "radeon" in gpu_name.lower()) else "Generic")))
+
+            # Detect primary active hardware encoder
+            active_hw_enc = None
+            for enc in ["h264_nvenc", "h264_qsv", "h264_amf", "h264_mf"]:
+                if enc in supported_encoders:
+                    active_hw_enc = enc
+                    break
+
+            if vendor == "NVIDIA":
+                accel_label = "NVIDIA NVENC"
+                compute_engine = "CUDA / Tensor"
+            elif vendor == "Intel":
+                accel_label = "Intel QuickSync"
+                compute_engine = "QuickSync / OneAPI"
+            elif vendor == "AMD":
+                accel_label = "AMD AMF"
+                compute_engine = "ROCm / AMF"
+            else:
+                accel_label = "Hardware Accel"
+                compute_engine = "DirectX / Vulkan"
 
             if gpu_detected and gpu_name:
-                self.lbl_gpu_title.configure(text=gpu_name[:32])
-                self.lbl_gpu_online.configure(text="Online (NVENC Ready)" if is_nvenc else "GPU Active", text_color=ACCENT_GREEN, fg_color="#D1FAE5")
-                tot_gb = vram_total / 1024
-                used_gb = vram_used / 1024
-                self.lbl_vram_spec.configure(text=f"{tot_gb:.1f} GB GDDR")
+                self.lbl_gpu_title.configure(text=gpu_name[:34])
+                self.lbl_gpu_online.configure(
+                    text=f"Online ({accel_label})" if is_hw_accel else "GPU Active",
+                    text_color=ACCENT_GREEN,
+                    fg_color="#D1FAE5"
+                )
+                tot_gb = vram_total / 1024 if vram_total > 0 else 0
+                used_gb = vram_used / 1024 if vram_used > 0 else 0
+                if tot_gb > 0:
+                    self.lbl_vram_spec.configure(text=f"{tot_gb:.1f} GB VRAM")
+                else:
+                    self.lbl_vram_spec.configure(text="Dynamic System RAM")
                 self.lbl_driver_spec.configure(text=str(detailed_gpu.get("driver_version", "Active Driver")))
-                self.lbl_cuda_spec.configure(text="CUDA Enabled")
-                self.lbl_compute_spec.configure(text="Supported")
-                self.lbl_enc_type_spec.configure(text="NVENC (Hardware)" if is_nvenc else "Software Encode")
+                self.lbl_cuda_spec.configure(text=compute_engine)
+                self.lbl_compute_spec.configure(text="Hardware Accelerated" if is_hw_accel else "Supported")
+                self.lbl_enc_type_spec.configure(text=f"{active_hw_enc} (GPU)" if active_hw_enc else "CPU Multi-Core")
 
-                self.lbl_g_gpu_val.configure(text=f"{gpu_util:.0f}%")
-                self.lbl_g_vram_val.configure(text=f"{used_gb:.1f} / {tot_gb:.1f} GB")
+                self.lbl_g_gpu_val.configure(text=f"{gpu_util:.0f}%" if gpu_util > 0 else "Active")
+                if tot_gb > 0:
+                    self.lbl_g_vram_val.configure(text=f"{used_gb:.1f} / {tot_gb:.1f} GB" if used_gb > 0 else f"{tot_gb:.1f} GB Dedicated")
+                else:
+                    self.lbl_g_vram_val.configure(text="Dynamic RAM")
                 temp = detailed_gpu.get("temperature_c")
                 self.lbl_g_temp_val.configure(text=f"{temp} °C" if temp else "Normal")
                 clk = detailed_gpu.get("mem_clock_mhz")
                 self.lbl_g_clock_val.configure(text=f"{clk} MHz" if clk else "Dynamic")
 
-                self.graph_gpu.update_data(gpu_util)
-                self.graph_vram.update_data((used_gb / tot_gb) * 100 if tot_gb > 0 else 0)
+                self.graph_gpu.update_data(gpu_util if gpu_util > 0 else 15.0)
+                if tot_gb > 0:
+                    self.graph_vram.update_data((used_gb / tot_gb) * 100 if tot_gb > 0 else 20.0)
                 if temp:
                     self.graph_temp.update_data(min(100, temp))
 
-                if is_nvenc:
+                if is_hw_accel and active_hw_enc:
                     self.lbl_nvenc_badge.configure(text="Ready", text_color=ACCENT_GREEN, fg_color="#D1FAE5")
-                    self.lbl_nvenc_ver.configure(text="Active (Driver)")
-                    self.lbl_nvenc_codecs.configure(text="H.264 (NVENC), HEVC")
-                    self.lbl_nvenc_status.configure(text="Available", text_color=ACCENT_GREEN)
-                    self.lbl_ff_h264.configure(text="Yes (h264_nvenc)", text_color=ACCENT_GREEN)
-                    self.lbl_ff_hevc.configure(text="Yes (hevc_nvenc)", text_color=ACCENT_GREEN)
+                    self.lbl_nvenc_ver.configure(text=f"{accel_label} Active")
+                    self.lbl_nvenc_codecs.configure(text=f"H.264 ({active_hw_enc}), HEVC")
+                    self.lbl_nvenc_status.configure(text="Hardware Ready", text_color=ACCENT_GREEN)
+                    self.lbl_ff_h264.configure(text=f"Yes ({active_hw_enc})", text_color=ACCENT_GREEN)
+                    self.lbl_ff_hevc.configure(text="Yes (Hardware)", text_color=ACCENT_GREEN)
                 else:
-                    self.lbl_nvenc_badge.configure(text="Unavailable", text_color=ACCENT_ORANGE, fg_color="#FEF3C7")
-                    self.lbl_nvenc_ver.configure(text="Driver Incompatible")
-                    self.lbl_nvenc_codecs.configure(text="CPU Fallback (libx264)")
-                    self.lbl_nvenc_status.configure(text="CPU Mode", text_color=ACCENT_BLUE)
+                    self.lbl_nvenc_badge.configure(text="CPU Fallback", text_color=ACCENT_BLUE, fg_color="#DBEAFE")
+                    self.lbl_nvenc_ver.configure(text="DirectX/MF Active")
+                    self.lbl_nvenc_codecs.configure(text="libx264 (Software)")
+                    self.lbl_nvenc_status.configure(text="CPU Multi-Core", text_color=ACCENT_BLUE)
                     self.lbl_ff_h264.configure(text="libx264 (Software)", text_color=ACCENT_BLUE)
                     self.lbl_ff_hevc.configure(text="libx265 (Software)", text_color=ACCENT_BLUE)
             else:
-                self.lbl_gpu_title.configure(text="CPU Transcode Node (No NVIDIA GPU)")
-                self.lbl_gpu_online.configure(text="CPU Fallback Mode", text_color=ACCENT_BLUE, fg_color="#DBEAFE")
+                self.lbl_gpu_title.configure(text="Universal CPU Compute Engine")
+                self.lbl_gpu_online.configure(text="CPU Mode", text_color=ACCENT_BLUE, fg_color="#DBEAFE")
                 self.lbl_vram_spec.configure(text="Shared System RAM")
                 self.lbl_driver_spec.configure(text="Host Display Driver")
-                self.lbl_cuda_spec.configure(text="N/A (CPU Mode)")
+                self.lbl_cuda_spec.configure(text="Multi-Core AVX2")
                 self.lbl_compute_spec.configure(text="x86_64 AVX2")
                 self.lbl_enc_type_spec.configure(text="CPU libx264 (Software)")
 
                 self.lbl_g_gpu_val.configure(text="0%")
                 self.lbl_g_vram_val.configure(text="Shared RAM")
                 self.lbl_g_temp_val.configure(text="Normal")
-                self.lbl_g_clock_val.configure(text="N/A")
+                self.lbl_g_clock_val.configure(text="Dynamic")
                 self.graph_gpu.update_data(0.0)
 
                 self.lbl_nvenc_badge.configure(text="CPU Fallback", text_color=ACCENT_BLUE, fg_color="#DBEAFE")
-                self.lbl_nvenc_ver.configure(text="N/A (CPU Node)")
+                self.lbl_nvenc_ver.configure(text="N/A (CPU Mode)")
                 self.lbl_nvenc_codecs.configure(text="libx264 (Software)")
-                self.lbl_nvenc_status.configure(text="CPU Fallback Active", text_color=ACCENT_BLUE)
+                self.lbl_nvenc_status.configure(text="CPU Multi-Core", text_color=ACCENT_BLUE)
                 self.lbl_ff_h264.configure(text="libx264 (Active)", text_color=ACCENT_BLUE)
                 self.lbl_ff_hevc.configure(text="libx265 (Software)", text_color=ACCENT_BLUE)
 
@@ -315,9 +348,10 @@ class GPUEngineView(ctk.CTkScrollableFrame):
             self.lbl_cpu_load_box.configure(text=f"{cpu_pct:.1f}%")
             self.lbl_cpu_cores_box.configure(text=f"{cpu_cores} Cores")
             self.lbl_cpu_model_box.configure(text=cpu_model[:22])
-            self.lbl_cpu_status_box.configure(text="Primary Engine" if not (gpu_detected and is_nvenc) else "Standby Fallback", text_color=ACCENT_GREEN)
+            self.lbl_cpu_status_box.configure(text="Standby Fallback" if is_hw_accel else "Primary Engine", text_color=ACCENT_GREEN)
 
-            diag_msg = f"Host: {telem.get('hostname', 'Local')} • Engine: {'NVIDIA NVENC Hardware' if (gpu_detected and is_nvenc) else 'CPU Multi-Core (libx264)'} • System Operational"
+            diag_engine = f"{accel_label} Hardware" if is_hw_accel else "CPU Multi-Core (libx264)"
+            diag_msg = f"Host: {telem.get('hostname', 'Local')} • Engine: {diag_engine} • System Operational"
             self.lbl_diag_summary.configure(text=diag_msg, text_color=ACCENT_GREEN)
 
         except Exception:

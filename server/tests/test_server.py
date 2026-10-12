@@ -148,3 +148,47 @@ async def test_job_upload_checksum_verification(tmp_path):
             assert "job_id" in body
             assert body["checksum"] == correct_hash
             assert body["file_size"] == len(sample_content)
+
+def test_universal_hardware_telemetry():
+    from server.app.services.system_service import SystemService
+    telem = SystemService.get_hardware_telemetry()
+    assert "hostname" in telem
+    assert "cpu_cores" in telem
+    assert telem["cpu_cores"] >= 1
+    assert "gpu_detected" in telem
+    assert "ram_total_gb" in telem
+    assert telem["ram_total_gb"] > 0
+
+def test_universal_lan_adapters_and_primary_ip():
+    from server.app.services.system_service import SystemService
+    ip = SystemService.get_primary_ip()
+    assert isinstance(ip, str)
+    assert len(ip.split(".")) == 4
+
+    adapters = SystemService.get_all_lan_adapters()
+    assert isinstance(adapters, list)
+    for ad in adapters:
+        assert "interface" in ad
+        assert "ip" in ad
+        assert "is_up" in ad
+        assert "type" in ad
+
+def test_multivendor_ffmpeg_command_construction():
+    in_p = Path("input.mp4")
+    out_p = Path("output.mp4")
+
+    # 1. Intel QuickSync (QSV)
+    cmd_qsv = FFmpegService.build_ffmpeg_command(
+        input_path=in_p,
+        output_path=out_p,
+        encoder="h264_qsv"
+    )
+    assert "h264_qsv" in cmd_qsv
+
+    # 2. AMD AMF
+    cmd_amf = FFmpegService.build_ffmpeg_command(
+        input_path=in_p,
+        output_path=out_p,
+        encoder="h264_amf"
+    )
+    assert "h264_amf" in cmd_amf

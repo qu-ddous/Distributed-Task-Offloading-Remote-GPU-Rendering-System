@@ -177,8 +177,8 @@ class JobManager:
                 "message": "Rendering started."
             })
 
-            # Check FFmpeg and NVENC capabilities
-            is_avail, _, is_nvenc, _ = SystemService.check_ffmpeg_capabilities()
+            # Check FFmpeg and hardware acceleration capabilities (NVENC / Intel QSV / AMD AMF)
+            is_avail, _, is_hw_accel, supported_encoders = SystemService.check_ffmpeg_capabilities()
             if not is_avail:
                 job.status = JobStatus.FAILED
                 job.error_message = (
@@ -193,12 +193,18 @@ class JobManager:
                 })
                 return
 
-            use_nvenc = is_nvenc
-            if not is_nvenc:
+            # Determine best encoder
+            chosen_encoder = None
+            for hw_enc in ["h264_nvenc", "h264_qsv", "h264_amf", "h264_mf"]:
+                if hw_enc in supported_encoders:
+                    chosen_encoder = hw_enc
+                    break
+
+            if not chosen_encoder:
                 if not job.allow_cpu_fallback and not settings.ALLOW_CPU_FALLBACK:
                     job.status = JobStatus.FAILED
                     job.error_message = (
-                        "NVIDIA NVENC hardware encoding is not available on worker server. "
+                        "Hardware video encoding (NVENC / QuickSync / AMF) is not available on worker server. "
                         "Job aborted because CPU fallback is disabled."
                     )
                     await self.broadcast(job.job_id, {
@@ -209,13 +215,21 @@ class JobManager:
                     })
                     return
                 else:
-                    use_nvenc = False
+                    chosen_encoder = "libx264"
                     await self.broadcast(job.job_id, {
                         "type": "log",
                         "job_id": job.job_id,
                         "level": "WARNING",
-                        "message": "NVENC not available. Falling back to CPU encoder (libx264) as requested."
+                        "message": "Hardware acceleration not available. Running high-performance CPU encoder (libx264)."
                     })
+            else:
+                hw_name = "NVIDIA NVENC" if chosen_encoder == "h264_nvenc" else ("Intel QuickSync" if chosen_encoder == "h264_qsv" else ("AMD AMF" if chosen_encoder == "h264_amf" else "Windows MediaFoundation"))
+                await self.broadcast(job.job_id, {
+                    "type": "log",
+                    "job_id": job.job_id,
+                    "level": "INFO",
+                    "message": f"Hardware acceleration engaged: {hw_name} ({chosen_encoder})"
+                })
 
             # Probe duration for progress calculation
             video_duration = FFmpegService.get_video_duration(job.input_path)
@@ -228,7 +242,8 @@ class JobManager:
                 resolution=job.resolution,
                 bitrate=job.bitrate,
                 preset=job.preset,
-                use_nvenc=use_nvenc
+                use_nvenc=True,
+                encoder=chosen_encoder
             )
 
             await self.broadcast(job.job_id, {

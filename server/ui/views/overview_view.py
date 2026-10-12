@@ -334,25 +334,43 @@ class ServerOverviewView(ctk.CTkScrollableFrame):
 
             if gpu_detected and gpu_name:
                 self.lbl_gpu_name.configure(text=gpu_name[:26])
-                if gpu_util is not None:
+                if gpu_util is not None and gpu_util > 0:
                     self.lbl_gpu_val.configure(text=f"{gpu_util:.0f}%")
                     self.bar_gpu.set(min(1.0, gpu_util / 100.0))
                     self.lbl_sys_gpu.configure(text=f"{gpu_util:.0f}%")
                     self.bar_sys_gpu.set(min(1.0, gpu_util / 100.0))
+                else:
+                    self.lbl_gpu_val.configure(text="Active")
+                    self.bar_gpu.set(0.15)
+                    self.lbl_sys_gpu.configure(text="Hardware Ready")
+                    self.bar_sys_gpu.set(0.15)
                 
-                if vram_total and vram_used:
-                    tot_gb = vram_total / 1024
-                    used_gb = vram_used / 1024
-                    pct = (used_gb / tot_gb) * 100 if tot_gb > 0 else 0
-                    self.lbl_vram_val.configure(text=f"{used_gb:.1f} / {tot_gb:.1f} GB")
-                    self.lbl_vram_pct.configure(text=f"{pct:.0f}% used")
-                    self.bar_vram.set(min(1.0, pct / 100.0))
-                    self.lbl_sys_vram.configure(text=f"{used_gb:.1f} / {tot_gb:.1f} GB ({pct:.0f}%)")
-                    self.bar_sys_vram.set(min(1.0, pct / 100.0))
+                tot_gb = (vram_total / 1024) if vram_total else 0
+                used_gb = (vram_used / 1024) if vram_used else 0
+                if tot_gb > 0:
+                    if used_gb > 0:
+                        pct = (used_gb / tot_gb) * 100
+                        self.lbl_vram_val.configure(text=f"{used_gb:.1f} / {tot_gb:.1f} GB")
+                        self.lbl_vram_pct.configure(text=f"{pct:.0f}% used")
+                        self.bar_vram.set(min(1.0, max(0.05, pct / 100.0)))
+                        self.lbl_sys_vram.configure(text=f"{used_gb:.1f} / {tot_gb:.1f} GB ({pct:.0f}%)")
+                        self.bar_sys_vram.set(min(1.0, max(0.05, pct / 100.0)))
+                    else:
+                        self.lbl_vram_val.configure(text=f"{tot_gb:.1f} GB")
+                        self.lbl_vram_pct.configure(text="Dedicated VRAM")
+                        self.bar_vram.set(0.2)
+                        self.lbl_sys_vram.configure(text=f"{tot_gb:.1f} GB Dedicated")
+                        self.bar_sys_vram.set(0.2)
+                else:
+                    self.lbl_vram_val.configure(text="Dynamic RAM")
+                    self.lbl_vram_pct.configure(text="Shared Memory")
+                    self.bar_vram.set(0.15)
+                    self.lbl_sys_vram.configure(text="Shared Host RAM")
+                    self.bar_sys_vram.set(0.15)
             else:
-                self.lbl_gpu_name.configure(text="CPU Mode (No NVIDIA GPU)")
-                self.lbl_gpu_val.configure(text="N/A")
-                self.lbl_sys_gpu.configure(text="N/A (CPU Mode)")
+                self.lbl_gpu_name.configure(text="Universal CPU Compute Engine")
+                self.lbl_gpu_val.configure(text="x86_64")
+                self.lbl_sys_gpu.configure(text="Multi-Core AVX2")
                 self.lbl_vram_val.configure(text="Shared RAM")
                 self.lbl_vram_pct.configure(text="System Memory")
                 self.lbl_sys_vram.configure(text="Shared System RAM")

@@ -251,13 +251,27 @@ class NetworkView(ctk.CTkScrollableFrame):
         box = ctk.CTkFrame(c, fg_color="transparent")
         box.pack(fill="x", padx=20, pady=16)
 
-        ctk.CTkLabel(box, text="🔒  Firewall & Port Status", font=ctk.CTkFont(size=14, weight="bold"), text_color=TEXT_PRIMARY).pack(anchor="w")
+        ctk.CTkLabel(box, text="🔒  Firewall & Network Adapters", font=ctk.CTkFont(size=14, weight="bold"), text_color=TEXT_PRIMARY).pack(anchor="w")
 
         f_row = ctk.CTkFrame(box, fg_color="transparent")
-        f_row.pack(fill="x", pady=(8, 0))
+        f_row.pack(fill="x", pady=(8, 4))
 
         ctk.CTkLabel(f_row, text=f"● Port {settings.PORT} (TCP): Open & Listening", font=ctk.CTkFont(size=12, weight="bold"), text_color=ACCENT_GREEN).pack(side="left", padx=(0, 20))
-        ctk.CTkLabel(f_row, text="● Network Interface: Active", font=ctk.CTkFont(size=12, weight="bold"), text_color=ACCENT_GREEN).pack(side="left")
+        ctk.CTkLabel(f_row, text="● Fast HTTP & WebSocket: Online", font=ctk.CTkFont(size=12, weight="bold"), text_color=ACCENT_GREEN).pack(side="left")
+
+        # Discovered Active Network Interfaces
+        adapters = [ad for ad in SystemService.get_all_lan_adapters() if ad.get("is_up") and not ad.get("is_virtual")]
+        if not adapters:
+            adapters = [ad for ad in SystemService.get_all_lan_adapters() if not ad.get("is_virtual")]
+
+        if adapters:
+            ad_box = ctk.CTkFrame(box, fg_color=BG_CARD_ALT, corner_radius=10)
+            ad_box.pack(fill="x", pady=(8, 0))
+            for i, ad in enumerate(adapters):
+                tag = f"● {ad['type']} ({ad['interface']}): {ad['ip']}"
+                clr = ACCENT_BLUE if ad['ip'] == self.primary_ip else ACCENT_GREEN
+                lbl = ctk.CTkLabel(ad_box, text=tag, font=ctk.CTkFont(size=11, weight="bold"), text_color=clr)
+                lbl.pack(side="left", padx=12, pady=6)
 
     def _refresh_network_status(self, reschedule: bool = True):
         try:
