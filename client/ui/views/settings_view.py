@@ -278,14 +278,14 @@ class SettingsView(ctk.CTkScrollableFrame):
 
     def _on_auto_cat6_clicked(self):
         try:
-            ps_script = """
+            ps_script = r"""
 Write-Host "=========================================================================" -ForegroundColor Cyan
 Write-Host "      CLIENT / LAPTOP PC - CAT6 ETHERNET ONE-CLICK SETUP                 " -ForegroundColor Cyan
 Write-Host "=========================================================================" -ForegroundColor Cyan
 Write-Host ""
 
 $adapters = @(Get-NetAdapter -ErrorAction SilentlyContinue | Where-Object {
-    $_.InterfaceAlias -notmatch 'Wi-Fi|Wireless|WLAN|Virtual|vEthernet|Loopback|Bluetooth|Tailscale|ZeroTier|TAP|TUN|Cellular' -and
+    $_.InterfaceAlias -notmatch 'Wi-Fi|Wireless|WLAN|Virtual|vEthernet|Loopback|Bluetooth|Tailscale|ZeroTier|TAP|TUN|Cellular|\*' -and
     $_.InterfaceDescription -notmatch 'Virtual|Hyper-V|VMware|Loopback|Bluetooth|TAP|TUN|Cellular'
 })
 
@@ -293,7 +293,7 @@ if ($adapters.Count -eq 0) {
     try {
         $lines = netsh interface show interface
         foreach ($line in $lines) {
-            if ($line -match 'Dedicated' -and $line -notmatch 'Wi-Fi|Wireless|Loopback|Cellular') {
+            if ($line -match 'Dedicated' -and $line -notmatch 'Wi-Fi|Wireless|Loopback|Cellular|\*') {
                 $parts = ($line.Trim() -split '\\s{2,}')
                 if ($parts.Count -ge 4) {
                     $adapters += [PSCustomObject]@{

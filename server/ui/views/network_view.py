@@ -345,7 +345,7 @@ class NetworkView(ctk.CTkScrollableFrame):
 
     def _auto_setup_cat6_host(self):
         try:
-            ps_script = """
+            ps_script = r"""
 Write-Host "=========================================================================" -ForegroundColor Cyan
 Write-Host "       HOST / SERVER PC - CAT6 ETHERNET ONE-CLICK SETUP                  " -ForegroundColor Cyan
 Write-Host "=========================================================================" -ForegroundColor Cyan
