@@ -275,11 +275,12 @@ class ActiveJobView(ctk.CTkFrame):
         self.append_log(f"[Upload] Completed in {t_up_duration}s. Server confirmed SHA-256 match.")
 
         # Phase 2: Live Remote Compute / Rendering
-        is_script = input_file.suffix.lower() in [".py", ".pyw", ".bat", ".cmd", ".ps1"]
-        stage_desc = "Stage: Remote Compute Execution (100% Server Hardware)..." if is_script else "Stage: Remote GPU Rendering..."
+        is_script = input_file.suffix.lower() in [".py", ".pyw", ".bat", ".cmd", ".ps1", ".zip"]
+        stage_desc = "Stage: Remote Universal / Compute Execution (100% Server Hardware)..." if is_script else "Stage: Remote GPU Rendering..."
         status_desc = "Job Status: Remote Compute (100% Server)" if is_script else "Job Status: Remote GPU Encoding (NVENC)"
         self.lbl_stage.configure(text=stage_desc)
-        self.lbl_result_icon.configure(text="🧠" if input_file.suffix.lower() in [".py", ".pyw"] else "⚡", fg_color="#EDE9FE")
+        icon_sym = "🌟" if input_file.suffix.lower() == ".zip" else ("🧠" if input_file.suffix.lower() in [".py", ".pyw"] else ("⚡" if is_script else "🎬"))
+        self.lbl_result_icon.configure(text=icon_sym, fg_color="#EDE9FE")
         self.lbl_result_status.configure(text=status_desc, text_color=ACCENT_PURPLE)
         self.ws_stop_event.clear()
 

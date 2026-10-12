@@ -164,9 +164,9 @@ class JobManager:
             job.status = JobStatus.RENDERING
             job.start_time = time.time()
 
-            # Detect task type: Python script, Batch/Shell, or Video
+            # Detect task type: Python script, Batch/Shell, Universal Zip Workspace, or Video
             ext = job.input_path.suffix.lower()
-            if ext in [".py", ".pyw", ".bat", ".cmd", ".ps1"]:
+            if ext in [".py", ".pyw", ".bat", ".cmd", ".ps1", ".zip"]:
                 await self._run_script_worker(job)
                 return
 
@@ -394,8 +394,40 @@ class JobManager:
         ext = job.input_path.suffix.lower()
         is_python = ext in [".py", ".pyw"]
         is_ps1 = ext == ".ps1"
+        is_zip = ext == ".zip"
 
-        if is_python:
+        working_cwd = str(job.job_dir)
+        custom_cmd = job.preset[4:].strip() if (job.preset and job.preset.startswith("cmd:")) else None
+
+        if is_zip:
+            workspace_dir = job.job_dir / "workspace"
+            workspace_dir.mkdir(parents=True, exist_ok=True)
+            import zipfile
+            try:
+                with zipfile.ZipFile(job.input_path, 'r') as zf:
+                    zf.extractall(workspace_dir)
+            except Exception as ze:
+                logger.error(f"Error extracting zip project: {ze}")
+            working_cwd = str(workspace_dir)
+
+            if custom_cmd:
+                runner_file = workspace_dir / "__runner__.bat"
+                runner_file.write_text(f"@echo off\r\n{custom_cmd}\r\n", encoding="utf-8")
+                cmd = ["cmd.exe", "/c", str(runner_file)]
+                engine_desc = f"Universal Project Workspace ({custom_cmd[:35]}...)"
+            elif (workspace_dir / "__run__.bat").exists():
+                cmd = ["cmd.exe", "/c", str(workspace_dir / "__run__.bat")]
+                engine_desc = "Universal Project Workspace (__run__.bat)"
+            elif (workspace_dir / "run.bat").exists():
+                cmd = ["cmd.exe", "/c", str(workspace_dir / "run.bat")]
+                engine_desc = "Universal Project Workspace (run.bat)"
+            elif (workspace_dir / "main.py").exists():
+                cmd = [sys.executable, "-u", str(workspace_dir / "main.py")]
+                engine_desc = "Universal Project Workspace (main.py)"
+            else:
+                cmd = ["cmd.exe", "/c", "dir"]
+                engine_desc = "Universal Project Workspace (Directory Inspection)"
+        elif is_python:
             cmd = [sys.executable, "-u", str(job.input_path)]
             engine_desc = "Python 3 GPU/Compute Engine"
         elif is_ps1:
@@ -422,13 +454,14 @@ class JobManager:
             with open(job.log_path, "w", encoding="utf-8") as lf:
                 lf.write(f"=== Remote Task Offloading: {job.input_filename} ===\n")
                 lf.write(f"Engine: {engine_desc}\n")
+                lf.write(f"Working Directory: {working_cwd}\n")
                 lf.write(f"Execution Command: {' '.join(cmd)}\n\n")
 
             job.process = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
-                cwd=str(job.job_dir)
+                cwd=working_cwd
             )
 
             async def stream_reader(stream, is_stderr: bool = False):
@@ -488,6 +521,18 @@ class JobManager:
                 return
 
             if job.process.returncode == 0:
+                # If workspace project folder produced output or was a zip job, archive workspace if output doesn't exist
+                if is_zip:
+                    workspace_dir = job.job_dir / "workspace"
+                    if workspace_dir.exists() and (not job.output_path.exists() or job.output_path.stat().st_size == 0):
+                        try:
+                            out_base = str(job.output_path.parent / job.output_path.stem)
+                            zip_created = shutil.make_archive(out_base, 'zip', workspace_dir)
+                            if Path(zip_created).exists():
+                                job.output_path = Path(zip_created)
+                        except Exception as ze:
+                            logger.error(f"Failed to package output workspace: {ze}")
+
                 # If script generated an output file directly, use it; otherwise provide the log as output
                 if not job.output_path.exists() or job.output_path.stat().st_size == 0:
                     shutil.copy(job.log_path, job.output_path)
