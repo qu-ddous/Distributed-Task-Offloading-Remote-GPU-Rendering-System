@@ -314,10 +314,36 @@ class NetworkView(ctk.CTkScrollableFrame):
             pady=8
         ).pack(anchor="w")
 
-    def _auto_setup_cat6_host(self):
+    def _run_elevated_ps1(self, ps_script_content: str, temp_filename: str):
+        import ctypes
         import subprocess
         import tempfile
         from pathlib import Path
+
+        temp_file = Path(tempfile.gettempdir()) / temp_filename
+        temp_file.write_text(ps_script_content.strip(), encoding="utf-8")
+
+        # First try native ShellExecuteW with "runas" to trigger UAC directly without nested shell quotation issues
+        try:
+            ret = ctypes.windll.shell32.ShellExecuteW(
+                None,
+                "runas",
+                "powershell.exe",
+                f'-NoProfile -ExecutionPolicy Bypass -File "{str(temp_file)}"',
+                None,
+                1  # SW_SHOWNORMAL
+            )
+            if ret > 32:
+                return True
+        except Exception:
+            pass
+
+        # Fallback to subprocess with Start-Process
+        cmd = f'Start-Process powershell -ArgumentList \'-NoProfile -ExecutionPolicy Bypass -File "{str(temp_file)}"\' -Verb RunAs'
+        subprocess.Popen(["powershell", "-NoProfile", "-Command", cmd])
+        return True
+
+    def _auto_setup_cat6_host(self):
         try:
             ps_script = """
 Write-Host "=========================================================================" -ForegroundColor Cyan
@@ -326,15 +352,15 @@ Write-Host "====================================================================
 Write-Host ""
 
 $adapters = @(Get-NetAdapter -ErrorAction SilentlyContinue | Where-Object {
-    $_.InterfaceAlias -notmatch 'Wi-Fi|Wireless|WLAN|Virtual|vEthernet|Loopback|Bluetooth|Tailscale|ZeroTier|TAP|TUN' -and
-    $_.InterfaceDescription -notmatch 'Virtual|Hyper-V|VMware|Loopback|Bluetooth|TAP|TUN'
+    $_.InterfaceAlias -notmatch 'Wi-Fi|Wireless|WLAN|Virtual|vEthernet|Loopback|Bluetooth|Tailscale|ZeroTier|TAP|TUN|Cellular' -and
+    $_.InterfaceDescription -notmatch 'Virtual|Hyper-V|VMware|Loopback|Bluetooth|TAP|TUN|Cellular'
 })
 
 if ($adapters.Count -eq 0) {
     try {
         $lines = netsh interface show interface
         foreach ($line in $lines) {
-            if ($line -match 'Dedicated' -and $line -notmatch 'Wi-Fi|Wireless|Loopback') {
+            if ($line -match 'Dedicated' -and $line -notmatch 'Wi-Fi|Wireless|Loopback|Cellular') {
                 $parts = ($line.Trim() -split '\\s{2,}')
                 if ($parts.Count -ge 4) {
                     $adapters += [PSCustomObject]@{
@@ -349,7 +375,9 @@ if ($adapters.Count -eq 0) {
 
 $alias = "Ethernet"
 if ($adapters.Count -gt 0) {
-    $target = $adapters | Where-Object { $_.Status -eq 'Up' } | Select-Object -First 1
+    $target = $adapters | Where-Object { ($_.InterfaceAlias -match 'Ethernet|LAN') -and $_.Status -eq 'Up' } | Select-Object -First 1
+    if (-not $target) { $target = $adapters | Where-Object { $_.Status -eq 'Up' } | Select-Object -First 1 }
+    if (-not $target) { $target = $adapters | Where-Object { $_.InterfaceAlias -match 'Ethernet|LAN' } | Select-Object -First 1 }
     if (-not $target) { $target = $adapters[0] }
     $alias = $target.InterfaceAlias
 }
@@ -357,51 +385,40 @@ if ($adapters.Count -gt 0) {
 Write-Host "Target Ethernet Adapter: '$alias'" -ForegroundColor Yellow
 Write-Host "Assigning Static IP 192.168.2.1 / 255.255.255.0..." -ForegroundColor Yellow
 
-netsh interface ipv4 set address name="$alias" static 192.168.2.1 255.255.255.0
+& netsh.exe interface ipv4 set address name="$alias" static 192.168.2.1 255.255.255.0
 
 try {
-    Remove-NetIPAddress -InterfaceAlias $alias -AddressFamily IPv4 -Confirm:$false -ErrorAction SilentlyContinue
+    Get-NetIPAddress -InterfaceAlias $alias -AddressFamily IPv4 -ErrorAction SilentlyContinue | Remove-NetIPAddress -Confirm:$false -ErrorAction SilentlyContinue
     Remove-NetRoute -InterfaceAlias $alias -AddressFamily IPv4 -Confirm:$false -ErrorAction SilentlyContinue
     New-NetIPAddress -InterfaceAlias $alias -IPAddress "192.168.2.1" -PrefixLength 24 -ErrorAction SilentlyContinue | Out-Null
 } catch {}
 
 Write-Host "Configuring Windows Defender Firewall for Port 8000..." -ForegroundColor Yellow
-netsh advfirewall firewall delete rule name="GPU Worker Server Port 8000"
-netsh advfirewall firewall add rule name="GPU Worker Server Port 8000" dir=in action=allow protocol=TCP localport=8000
+& netsh.exe advfirewall firewall delete rule name="GPU Worker Server Port 8000"
+& netsh.exe advfirewall firewall add rule name="GPU Worker Server Port 8000" dir=in action=allow protocol=TCP localport=8000
 
 Write-Host ""
 Write-Host "=========================================================================" -ForegroundColor Green
 Write-Host "  ✔ SUCCESS: Host PC configured! IP: 192.168.2.1, Port 8000 Allowed." -ForegroundColor Green
 Write-Host "=========================================================================" -ForegroundColor Green
-Start-Sleep -Seconds 2
+Start-Sleep -Seconds 3
 """
-            temp_file = Path(tempfile.gettempdir()) / "setup_cat6_host.ps1"
-            temp_file.write_text(ps_script.strip(), encoding="utf-8")
-
-            cmd = f'Start-Process powershell -ArgumentList \'-NoProfile -ExecutionPolicy Bypass -File "{str(temp_file)}"\' -Verb RunAs'
-            subprocess.Popen(["powershell", "-NoProfile", "-Command", cmd])
+            self._run_elevated_ps1(ps_script, "setup_cat6_host.ps1")
             self.lbl_fw_status.configure(text="✔ Setup launched in Administrator window (accept UAC prompt)", text_color=ACCENT_GREEN)
             self.after(3500, self.on_page_shown)
         except Exception as e:
             self.lbl_fw_status.configure(text=f"Error: {e}", text_color=ACCENT_RED)
 
     def _open_firewall_port_8000(self):
-        import subprocess
-        import tempfile
-        from pathlib import Path
         try:
             ps_script = """
 Write-Host "Opening Port 8000 in Windows Defender Firewall..." -ForegroundColor Cyan
-netsh advfirewall firewall delete rule name="GPU Worker Server Port 8000"
-netsh advfirewall firewall add rule name="GPU Worker Server Port 8000" dir=in action=allow protocol=TCP localport=8000
+& netsh.exe advfirewall firewall delete rule name="GPU Worker Server Port 8000"
+& netsh.exe advfirewall firewall add rule name="GPU Worker Server Port 8000" dir=in action=allow protocol=TCP localport=8000
 Write-Host "Port 8000 is now OPEN for remote connections!" -ForegroundColor Green
-Start-Sleep -Seconds 2
+Start-Sleep -Seconds 3
 """
-            temp_file = Path(tempfile.gettempdir()) / "open_fw_8000.ps1"
-            temp_file.write_text(ps_script.strip(), encoding="utf-8")
-
-            cmd = f'Start-Process powershell -ArgumentList \'-NoProfile -ExecutionPolicy Bypass -File "{str(temp_file)}"\' -Verb RunAs'
-            subprocess.Popen(["powershell", "-NoProfile", "-Command", cmd])
+            self._run_elevated_ps1(ps_script, "open_fw_8000.ps1")
             self.lbl_fw_status.configure(text="✔ Firewall Rule Requested (Allow Port 8000)", text_color=ACCENT_GREEN)
         except Exception as e:
             self.lbl_fw_status.configure(text=f"Error requesting firewall: {e}", text_color=ACCENT_RED)

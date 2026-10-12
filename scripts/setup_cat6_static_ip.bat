@@ -20,14 +20,14 @@ function Get-EthernetAdapters {
     $result = @()
     try {
         $result = @(Get-NetAdapter -ErrorAction Stop | Where-Object {
-            $_.InterfaceAlias -notmatch 'Wi-Fi|Wireless|WLAN|Virtual|vEthernet|Loopback|Bluetooth|Tailscale|ZeroTier|TAP|TUN' -and
-            $_.InterfaceDescription -notmatch 'Virtual|Hyper-V|VMware|Loopback|Bluetooth|TAP|TUN'
+            $_.InterfaceAlias -notmatch 'Wi-Fi|Wireless|WLAN|Virtual|vEthernet|Loopback|Bluetooth|Tailscale|ZeroTier|TAP|TUN|Cellular' -and
+            $_.InterfaceDescription -notmatch 'Virtual|Hyper-V|VMware|Loopback|Bluetooth|TAP|TUN|Cellular'
         })
     } catch {
         try {
             $lines = netsh interface show interface
             foreach ($line in $lines) {
-                if ($line -match 'Dedicated' -and $line -notmatch 'Wi-Fi|Wireless|Loopback') {
+                if ($line -match 'Dedicated' -and $line -notmatch 'Wi-Fi|Wireless|Loopback|Cellular') {
                     $parts = ($line.Trim() -split '\s{2,}')
                     if ($parts.Count -ge 4) {
                         $name = $parts[3]

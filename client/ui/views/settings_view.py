@@ -239,10 +239,36 @@ class SettingsView(ctk.CTkScrollableFrame):
         self._update_badge(False)
         messagebox.showinfo("Disconnected", "Server disconnected successfully. Client Studio is now in Offline mode.")
 
-    def _on_auto_cat6_clicked(self):
+    def _run_elevated_ps1(self, ps_script_content: str, temp_filename: str):
+        import ctypes
         import subprocess
         import tempfile
         from pathlib import Path
+
+        temp_file = Path(tempfile.gettempdir()) / temp_filename
+        temp_file.write_text(ps_script_content.strip(), encoding="utf-8")
+
+        # Native ShellExecuteW with "runas" verb triggers UAC elevation directly without PowerShell string escaping issues
+        try:
+            ret = ctypes.windll.shell32.ShellExecuteW(
+                None,
+                "runas",
+                "powershell.exe",
+                f'-NoProfile -ExecutionPolicy Bypass -File "{str(temp_file)}"',
+                None,
+                1  # SW_SHOWNORMAL
+            )
+            if ret > 32:
+                return True
+        except Exception:
+            pass
+
+        # Fallback to subprocess with Start-Process
+        cmd = f'Start-Process powershell -ArgumentList \'-NoProfile -ExecutionPolicy Bypass -File "{str(temp_file)}"\' -Verb RunAs'
+        subprocess.Popen(["powershell", "-NoProfile", "-Command", cmd])
+        return True
+
+    def _on_auto_cat6_clicked(self):
         try:
             ps_script = """
 Write-Host "=========================================================================" -ForegroundColor Cyan
@@ -251,15 +277,15 @@ Write-Host "====================================================================
 Write-Host ""
 
 $adapters = @(Get-NetAdapter -ErrorAction SilentlyContinue | Where-Object {
-    $_.InterfaceAlias -notmatch 'Wi-Fi|Wireless|WLAN|Virtual|vEthernet|Loopback|Bluetooth|Tailscale|ZeroTier|TAP|TUN' -and
-    $_.InterfaceDescription -notmatch 'Virtual|Hyper-V|VMware|Loopback|Bluetooth|TAP|TUN'
+    $_.InterfaceAlias -notmatch 'Wi-Fi|Wireless|WLAN|Virtual|vEthernet|Loopback|Bluetooth|Tailscale|ZeroTier|TAP|TUN|Cellular' -and
+    $_.InterfaceDescription -notmatch 'Virtual|Hyper-V|VMware|Loopback|Bluetooth|TAP|TUN|Cellular'
 })
 
 if ($adapters.Count -eq 0) {
     try {
         $lines = netsh interface show interface
         foreach ($line in $lines) {
-            if ($line -match 'Dedicated' -and $line -notmatch 'Wi-Fi|Wireless|Loopback') {
+            if ($line -match 'Dedicated' -and $line -notmatch 'Wi-Fi|Wireless|Loopback|Cellular') {
                 $parts = ($line.Trim() -split '\\s{2,}')
                 if ($parts.Count -ge 4) {
                     $adapters += [PSCustomObject]@{
@@ -274,7 +300,9 @@ if ($adapters.Count -eq 0) {
 
 $alias = "Ethernet"
 if ($adapters.Count -gt 0) {
-    $target = $adapters | Where-Object { $_.Status -eq 'Up' } | Select-Object -First 1
+    $target = $adapters | Where-Object { ($_.InterfaceAlias -match 'Ethernet|LAN') -and $_.Status -eq 'Up' } | Select-Object -First 1
+    if (-not $target) { $target = $adapters | Where-Object { $_.Status -eq 'Up' } | Select-Object -First 1 }
+    if (-not $target) { $target = $adapters | Where-Object { $_.InterfaceAlias -match 'Ethernet|LAN' } | Select-Object -First 1 }
     if (-not $target) { $target = $adapters[0] }
     $alias = $target.InterfaceAlias
 }
@@ -282,10 +310,10 @@ if ($adapters.Count -gt 0) {
 Write-Host "Target Ethernet Adapter: '$alias'" -ForegroundColor Yellow
 Write-Host "Configuring Static IP 192.168.2.2 / 255.255.255.0..." -ForegroundColor Yellow
 
-netsh interface ipv4 set address name="$alias" static 192.168.2.2 255.255.255.0
+& netsh.exe interface ipv4 set address name="$alias" static 192.168.2.2 255.255.255.0
 
 try {
-    Remove-NetIPAddress -InterfaceAlias $alias -AddressFamily IPv4 -Confirm:$false -ErrorAction SilentlyContinue
+    Get-NetIPAddress -InterfaceAlias $alias -AddressFamily IPv4 -ErrorAction SilentlyContinue | Remove-NetIPAddress -Confirm:$false -ErrorAction SilentlyContinue
     Remove-NetRoute -InterfaceAlias $alias -AddressFamily IPv4 -Confirm:$false -ErrorAction SilentlyContinue
     New-NetIPAddress -InterfaceAlias $alias -IPAddress "192.168.2.2" -PrefixLength 24 -ErrorAction SilentlyContinue | Out-Null
 } catch {}
@@ -294,13 +322,9 @@ Write-Host ""
 Write-Host "=========================================================================" -ForegroundColor Green
 Write-Host "  ✔ SUCCESS: Client PC configured! IP: 192.168.2.2." -ForegroundColor Green
 Write-Host "=========================================================================" -ForegroundColor Green
-Start-Sleep -Seconds 2
+Start-Sleep -Seconds 3
 """
-            temp_file = Path(tempfile.gettempdir()) / "setup_cat6_client.ps1"
-            temp_file.write_text(ps_script.strip(), encoding="utf-8")
-
-            cmd = f'Start-Process powershell -ArgumentList \'-NoProfile -ExecutionPolicy Bypass -File "{str(temp_file)}"\' -Verb RunAs'
-            subprocess.Popen(["powershell", "-NoProfile", "-Command", cmd])
+            self._run_elevated_ps1(ps_script, "setup_cat6_client.ps1")
 
             self.entry_host.delete(0, "end")
             self.entry_host.insert(0, "192.168.2.1")
