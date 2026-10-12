@@ -55,7 +55,7 @@ class TopbarHeader(ctk.CTkFrame):
 
         self.btn_ping = ctk.CTkButton(
             right_box,
-            text="⚡ Auto-Connect",
+            text="⚡ Cat6 Connect",
             width=115,
             height=32,
             corner_radius=8,

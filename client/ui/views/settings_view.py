@@ -41,9 +41,9 @@ class SettingsView(ctk.CTkScrollableFrame):
         grid.grid_columnconfigure(1, weight=1)
 
         # Worker Host IP
-        ctk.CTkLabel(grid, text="Worker IPv4 Address", font=ctk.CTkFont(size=12, weight="bold"), text_color=TEXT_SECONDARY).grid(row=0, column=0, sticky="w", pady=(0, 4))
-        self.entry_host = ctk.CTkEntry(grid, placeholder_text="192.168.1.150", fg_color=BG_INPUT, border_color=BORDER_COLOR, corner_radius=10, height=38, text_color=TEXT_PRIMARY)
-        self.entry_host.insert(0, str(self.app.config_data.get("server_host", "127.0.0.1")))
+        ctk.CTkLabel(grid, text="Worker IPv4 Address (Cat6: 192.168.2.1)", font=ctk.CTkFont(size=12, weight="bold"), text_color=TEXT_SECONDARY).grid(row=0, column=0, sticky="w", pady=(0, 4))
+        self.entry_host = ctk.CTkEntry(grid, placeholder_text="192.168.2.1", fg_color=BG_INPUT, border_color=BORDER_COLOR, corner_radius=10, height=38, text_color=TEXT_PRIMARY)
+        self.entry_host.insert(0, str(self.app.config_data.get("server_host", "192.168.2.1")))
         self.entry_host.grid(row=1, column=0, sticky="ew", padx=(0, 10), pady=(0, 14))
 
         # Port
@@ -62,18 +62,18 @@ class SettingsView(ctk.CTkScrollableFrame):
         act_row = ctk.CTkFrame(card, fg_color="transparent")
         act_row.pack(fill="x", padx=22, pady=(0, 20))
 
-        # 1-Click Auto Discover Server button
-        self.btn_auto_discover = ctk.CTkButton(
+        # 1-Click Auto Configure Cat6 & Connect
+        self.btn_auto_cat6 = ctk.CTkButton(
             act_row,
-            text="⚡  Auto-Discover Server",
-            command=self._on_auto_discover_clicked,
+            text="⚡  Auto-Configure Cat6 & Connect",
+            command=self._on_auto_cat6_clicked,
             fg_color="#0D9488",
             hover_color="#0F766E",
             corner_radius=10,
             height=38,
             font=ctk.CTkFont(size=12, weight="bold")
         )
-        self.btn_auto_discover.pack(side="left", padx=(0, 8))
+        self.btn_auto_cat6.pack(side="left", padx=(0, 8))
 
         self.btn_test = ctk.CTkButton(
             act_row,
@@ -100,21 +100,9 @@ class SettingsView(ctk.CTkScrollableFrame):
         )
         self.btn_disconnect.pack(side="left", padx=(0, 8))
 
-        self.btn_auto_cat6 = ctk.CTkButton(
-            act_row,
-            text="🌐  Cat6 Setup (192.168.2.2)",
-            command=self._on_auto_cat6_clicked,
-            fg_color="#475569",
-            hover_color="#334155",
-            corner_radius=10,
-            height=38,
-            font=ctk.CTkFont(size=12, weight="bold")
-        )
-        self.btn_auto_cat6.pack(side="left", padx=(0, 8))
-
         self.btn_reset = ctk.CTkButton(
             act_row,
-            text="🗑️  Reset",
+            text="🗑️  Reset (192.168.2.1)",
             command=self._on_reset_connection_clicked,
             fg_color="#F1F5F9",
             hover_color="#E2E8F0",
@@ -125,7 +113,7 @@ class SettingsView(ctk.CTkScrollableFrame):
         )
         self.btn_reset.pack(side="left")
 
-        curr_host = self.app.config_data.get("server_host", "127.0.0.1")
+        curr_host = self.app.config_data.get("server_host", "192.168.2.1")
         curr_port = self.app.config_data.get("server_port", 8000)
         self.lbl_verified_badge = ctk.CTkLabel(
             act_row,
@@ -145,22 +133,6 @@ class SettingsView(ctk.CTkScrollableFrame):
         self.entry_port.delete(0, "end")
         self.entry_port.insert(0, str(port))
         self._update_badge(True, str(host), str(port))
-
-    def _on_auto_discover_clicked(self):
-        self.btn_auto_discover.configure(state="disabled", text="🔍 Scanning Network...")
-        def on_done(success: bool, msg: str):
-            self.btn_auto_discover.configure(state="normal", text="⚡  Auto-Discover Server")
-            if success:
-                messagebox.showinfo("Auto-Discovery Successful", f"{msg}\n\nClient Studio is now connected!")
-            else:
-                messagebox.showwarning(
-                    "Auto-Discovery",
-                    f"{msg}\n\n"
-                    "Common Fixes:\n"
-                    "1. Make sure 'GPUWorkerServer.exe' is running on the Host PC.\n"
-                    "2. Verify both PCs are connected to the same Wi-Fi router or direct Cat6 cable."
-                )
-        self.app.auto_discover_and_connect(interactive=True, on_complete=on_done)
 
     def _update_badge(self, is_online: bool, host: str = "", port: Any = ""):
         if is_online:
@@ -366,24 +338,21 @@ Start-Sleep -Seconds 3
             self.entry_host.insert(0, "192.168.2.1")
             self.entry_port.delete(0, "end")
             self.entry_port.insert(0, "8000")
-            messagebox.showinfo(
-                "Cat6 Auto-Configuration",
-                "Client IP (192.168.2.2) setup launched in Administrator window.\n\n"
-                "Worker Host address has been set to: 192.168.2.1:8000\n\n"
-                "Once the prompt completes, click '🔄 Test & Connect' to verify."
-            )
+
+            # Automatically test and connect after script finishes applying static IP
+            self.after(2600, self._on_test_handshake_clicked)
         except Exception as e:
             messagebox.showerror("Error", f"Could not auto-configure IP: {e}")
 
     def _on_reset_connection_clicked(self):
         self.entry_host.delete(0, "end")
-        self.entry_host.insert(0, "127.0.0.1")
+        self.entry_host.insert(0, "192.168.2.1")
         self.entry_port.delete(0, "end")
         self.entry_port.insert(0, "8000")
         self.entry_token.delete(0, "end")
         self.app.disconnect_server()
         self._update_badge(False)
-        messagebox.showinfo("Reset", "Host reset to 127.0.0.1:8000. Click 'Test & Connect' to verify.")
+        messagebox.showinfo("Reset", "Host reset to Cat6 direct cable 192.168.2.1:8000. Click 'Test & Connect' to verify.")
 
     def _on_test_handshake_clicked(self):
         host = self.entry_host.get().strip()

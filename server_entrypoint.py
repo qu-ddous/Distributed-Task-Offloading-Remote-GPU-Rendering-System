@@ -43,13 +43,12 @@ def main():
     server_thread = threading.Thread(target=server_instance.run, daemon=True)
     server_thread.start()
 
-    # Start Zero-Config Network Discovery Beacon & Silent Firewall Enforcer in background
+    # Automatically configure Cat6 Ethernet Host IP (192.168.2.1) and Firewall in background
     try:
-        from shared.discovery import DiscoveryServer
-        discovery_srv = DiscoveryServer(port=settings.PORT)
-        discovery_srv.start()
+        from shared.cat6_network import auto_configure_host_cat6
+        threading.Thread(target=lambda: auto_configure_host_cat6(elevate_if_needed=False), daemon=True).start()
     except Exception as e:
-        logging.warning(f"Could not start DiscoveryServer: {e}")
+        logging.warning(f"Cat6 auto-config note: {e}")
 
     # Start Modern CustomTkinter Worker GUI
     gui_app = ServerApp(uvicorn_server_instance=server_instance)

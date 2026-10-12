@@ -352,7 +352,7 @@ Write-Host "====================================================================
 Write-Host ""
 
 $adapters = @(Get-NetAdapter -ErrorAction SilentlyContinue | Where-Object {
-    $_.InterfaceAlias -notmatch 'Wi-Fi|Wireless|WLAN|Virtual|vEthernet|Loopback|Bluetooth|Tailscale|ZeroTier|TAP|TUN|Cellular' -and
+    $_.InterfaceAlias -notmatch 'Wi-Fi|Wireless|WLAN|Virtual|vEthernet|Loopback|Bluetooth|Tailscale|ZeroTier|TAP|TUN|Cellular|\*' -and
     $_.InterfaceDescription -notmatch 'Virtual|Hyper-V|VMware|Loopback|Bluetooth|TAP|TUN|Cellular'
 })
 
@@ -360,7 +360,7 @@ if ($adapters.Count -eq 0) {
     try {
         $lines = netsh interface show interface
         foreach ($line in $lines) {
-            if ($line -match 'Dedicated' -and $line -notmatch 'Wi-Fi|Wireless|Loopback|Cellular') {
+            if ($line -match 'Dedicated' -and $line -notmatch 'Wi-Fi|Wireless|Loopback|Cellular|\*') {
                 $parts = ($line.Trim() -split '\\s{2,}')
                 if ($parts.Count -ge 4) {
                     $adapters += [PSCustomObject]@{

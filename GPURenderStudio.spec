@@ -23,7 +23,7 @@ hiddenimports = [
     'pydantic_settings',
     'psutil',
     'shared',
-    'shared.discovery',
+    'shared.cat6_network',
 ]
 
 a = Analysis(

@@ -70,8 +70,8 @@ class App(ctk.CTk):
         self._heartbeat_running = True
         self._user_manually_disconnected = False
 
-        # Auto-discover GPU worker on startup across Wi-Fi, Cat6, and local network
-        self.after(500, lambda: self.auto_discover_and_connect(interactive=False))
+        # Automatically check and connect to Cat6 Host (192.168.2.1:8000) on startup
+        self.after(500, self._startup_connection_check)
 
         # Start continuous background heartbeat monitor (only pings when is_connected == True)
         self._start_heartbeat_monitor()
@@ -153,62 +153,45 @@ class App(ctk.CTk):
             else:
                 btn.configure(fg_color="transparent", text_color=TEXT_SECONDARY)
 
-    def auto_discover_and_connect(self, interactive: bool = False, on_complete: Optional[Callable[[bool, str], None]] = None):
+    def connect_cat6_worker(self, interactive: bool = False, on_complete: Optional[Callable[[bool, str], None]] = None):
         """
-        Automatic Network Discovery:
-        1. Checks current configured host first.
-        2. If offline, broadcasts via UDP across all interfaces (Wi-Fi, Cat6, Ethernet).
-        3. Concurrently probes local subnets for GPU worker.
-        4. If found, automatically updates configuration, tests handshake, and connects.
+        Connects to GPU Worker exclusively over direct Cat6 Ethernet cable:
+        1. Silently ensures Client Ethernet adapter is configured for 192.168.2.2.
+        2. Tests handshake directly to Host 192.168.2.1:8000.
         """
         def task():
-            from shared.discovery import DiscoveryClient
-            host = self.config_data.get("server_host", "127.0.0.1")
-            port = self.config_data.get("server_port", 8000)
-            token = self.config_data.get("api_token", "")
+            from shared.cat6_network import auto_configure_client_cat6, HOST_CAT6_IP, CAT6_PORT
+            try:
+                auto_configure_client_cat6(elevate_if_needed=False)
+            except Exception:
+                pass
 
-            # 1. Quick check configured host
-            if host and host not in ("127.0.0.1", "localhost"):
-                net = NetworkClient(host, port, token)
-                res = net.ping_and_health(timeout=1.2)
+            token = self.config_data.get("api_token", "")
+            net = NetworkClient(HOST_CAT6_IP, CAT6_PORT, token)
+            res = net.ping_and_health(timeout=3.0)
+
+            def handle_ui():
                 if res.get("success"):
                     lat = res.get("latency_ms", 0)
                     data = res.get("data", {})
-                    self.after(0, lambda: self._on_discovery_done(True, host, port, token, lat, data, interactive, on_complete))
-                    return
+                    self.on_connection_success(HOST_CAT6_IP, CAT6_PORT, token, lat, data)
+                    if "settings" in self.views and hasattr(self.views["settings"], "update_host_port_display"):
+                        self.views["settings"].update_host_port_display(HOST_CAT6_IP, CAT6_PORT)
+                    if on_complete:
+                        on_complete(True, f"Connected to GPU Worker at {HOST_CAT6_IP}:{CAT6_PORT} over Cat6!")
+                else:
+                    err = res.get("error", f"Could not reach Host at {HOST_CAT6_IP}:{CAT6_PORT}")
+                    if not self.is_connected:
+                        self.on_connection_failure(err)
+                    if on_complete:
+                        on_complete(False, err)
 
-            # 2. Run active multi-interface discovery (UDP + Subnet Probe)
-            found = DiscoveryClient.discover_worker(timeout=2.2, preferred_ip=host)
-            if found:
-                srv_ip = found["ip"]
-                srv_port = found.get("port", 8000)
-                net = NetworkClient(srv_ip, srv_port, token)
-                res = net.ping_and_health(timeout=2.0)
-                if res.get("success"):
-                    lat = res.get("latency_ms", found.get("latency_ms", 0))
-                    data = res.get("data", {})
-                    self.after(0, lambda: self._on_discovery_done(True, srv_ip, srv_port, token, lat, data, interactive, on_complete))
-                    return
-
-            self.after(0, lambda: self._on_discovery_done(False, "", 8000, "", 0, {}, interactive, on_complete))
+            self.after(0, handle_ui)
 
         threading.Thread(target=task, daemon=True).start()
 
-    def _on_discovery_done(self, success: bool, host: str, port: int, token: str, latency: float, data: dict, interactive: bool, on_complete=None):
-        if success:
-            self.on_connection_success(host, port, token, latency, data)
-            if "settings" in self.views and hasattr(self.views["settings"], "update_host_port_display"):
-                self.views["settings"].update_host_port_display(host, port)
-            if on_complete:
-                on_complete(True, f"Found and connected to GPU Worker at {host}:{port}")
-        else:
-            if not self.is_connected:
-                self.on_connection_failure("No GPU Worker found on network")
-            if on_complete:
-                on_complete(False, "Could not locate GPU Worker Server on Wi-Fi, Cat6 or local network.")
-
     def _startup_connection_check(self):
-        self.auto_discover_and_connect(interactive=True)
+        self.connect_cat6_worker(interactive=False)
 
     def _start_heartbeat_monitor(self):
         import time

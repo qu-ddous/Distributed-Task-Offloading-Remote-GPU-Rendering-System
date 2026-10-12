@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Dict, Any
 
 DEFAULT_SETTINGS: Dict[str, Any] = {
-    "server_host": "127.0.0.1",
+    "server_host": "192.168.2.1",
     "server_port": 8000,
     "api_token": "supersecret-render-token-change-me",
     "theme_mode": "dark",
