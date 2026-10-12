@@ -366,20 +366,20 @@ class SystemService:
             for iface, addrs in psutil.net_if_addrs().items():
                 st = stats.get(iface)
                 is_up = st.isup if st else False
-                is_virtual = any(v in iface.lower() for v in ["virtual", "vethernet", "vmware", "loopback", "wsl", "hyper-v", "pseudo"])
+                is_virtual = any(v in iface.lower() for v in ["virtual", "vethernet", "vmware", "loopback", "wsl", "hyper-v", "pseudo", "tap", "tun", "zerotier", "tailscale", "bluetooth"])
                 for a in addrs:
                     if a.family == socket.AF_INET:
                         ip = a.address
                         if ip.startswith("127."):
                             continue
-                        if "wi-fi" in iface.lower() or "wireless" in iface.lower() or "wlan" in iface.lower():
+                        if any(w in iface.lower() for w in ["wi-fi", "wireless", "wlan", "802.11"]):
                             ad_type = "Wi-Fi"
-                        elif "ethernet" in iface.lower() or "lan" in iface.lower():
-                            ad_type = "Ethernet"
+                        elif any(e in iface.lower() for e in ["ethernet", "lan", "local area", "gigabit", "controller", "pcie", "eth", "realtek", "intel"]):
+                            ad_type = "Ethernet (Cat6 / LAN)"
                         else:
                             ad_type = "Network"
                         if ip.startswith("169.254."):
-                            ad_type += " (Direct Cable)"
+                            ad_type += " (Direct Cable APIPA)"
                         adapters.append({
                             "interface": iface,
                             "ip": ip,
@@ -395,18 +395,36 @@ class SystemService:
     def get_primary_ip(cls) -> str:
         """
         Determines the system's actual local IPv4 LAN address (e.g. 192.168.x.x, 10.x.x.x).
-        Prioritizes active physical adapters (Wi-Fi/Ethernet).
+        Prioritizes active physical adapters: Ethernet first (highest speed for Cat6 rendering), then Wi-Fi.
         Falls back cleanly to direct Ethernet cable (169.254.x.x) if no router is present.
         """
         adapters = cls.get_all_lan_adapters()
-        # 1. Active physical UP adapter with private LAN IP
+
+        # 1. Active physical UP Ethernet adapter with private LAN IP (Highest Priority for Cat6 rendering)
+        for ad in adapters:
+            if ad["is_up"] and not ad["is_virtual"] and "ethernet" in ad["type"].lower():
+                ip = ad["ip"]
+                if ip.startswith("192.168.") or ip.startswith("10.") or (ip.startswith("172.") and not ip.startswith("172.17.")):
+                    return ip
+
+        # 2. Active physical UP Wi-Fi or other adapter with private LAN IP
         for ad in adapters:
             if ad["is_up"] and not ad["is_virtual"]:
                 ip = ad["ip"]
                 if ip.startswith("192.168.") or ip.startswith("10.") or (ip.startswith("172.") and not ip.startswith("172.17.")):
                     return ip
 
-        # 2. UDP routing probe
+        # 3. Direct LAN cable (APIPA 169.254.x.x) on active physical Ethernet interface
+        for ad in adapters:
+            if ad["is_up"] and not ad["is_virtual"] and "ethernet" in ad["type"].lower() and ad["ip"].startswith("169.254."):
+                return ad["ip"]
+
+        # 4. Any direct cable (APIPA 169.254.x.x) on active physical interface
+        for ad in adapters:
+            if ad["is_up"] and not ad["is_virtual"] and ad["ip"].startswith("169.254."):
+                return ad["ip"]
+
+        # 5. UDP routing probe
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             s.connect(("8.8.8.8", 80))
@@ -417,12 +435,7 @@ class SystemService:
         except Exception:
             pass
 
-        # 3. Direct LAN cable (APIPA 169.254.x.x) on active physical interface
-        for ad in adapters:
-            if ad["is_up"] and not ad["is_virtual"] and ad["ip"].startswith("169.254."):
-                return ad["ip"]
-
-        # 4. Any non-loopback IP
+        # 6. Any non-loopback IP
         for ad in adapters:
             if not ad["ip"].startswith("127."):
                 return ad["ip"]

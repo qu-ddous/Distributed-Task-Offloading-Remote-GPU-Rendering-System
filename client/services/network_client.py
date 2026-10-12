@@ -11,8 +11,25 @@ from shared.schemas import PROTOCOL_VERSION
 
 class NetworkClient:
     def __init__(self, host: str = "127.0.0.1", port: int = 8000, api_token: str = ""):
-        self.host = host.strip()
-        self.port = int(port)
+        cleaned_host = str(host).strip()
+        # Remove http:// or https:// prefix if user pasted full URL
+        if cleaned_host.lower().startswith("http://"):
+            cleaned_host = cleaned_host[7:]
+        elif cleaned_host.lower().startswith("https://"):
+            cleaned_host = cleaned_host[8:]
+        cleaned_host = cleaned_host.rstrip("/")
+
+        # Check if port was accidentally appended to host string (e.g. 192.168.1.2:8000)
+        if ":" in cleaned_host:
+            parts = cleaned_host.split(":")
+            cleaned_host = parts[0]
+            try:
+                port = int(parts[1])
+            except ValueError:
+                pass
+
+        self.host = cleaned_host or "127.0.0.1"
+        self.port = int(port) if str(port).isdigit() else 8000
         self.api_token = api_token.strip()
         self.base_url = f"http://{self.host}:{self.port}"
         self.ws_url = f"ws://{self.host}:{self.port}"
@@ -23,7 +40,7 @@ class NetworkClient:
             headers["X-API-Token"] = self.api_token
         return headers
 
-    def ping_and_health(self, timeout: float = 3.0) -> Dict[str, Any]:
+    def ping_and_health(self, timeout: float = 5.0) -> Dict[str, Any]:
         """
         Synchronous ping & health check executed from a background thread.
         Returns dict with status, latency_ms, health_info or error.
@@ -70,12 +87,20 @@ class NetworkClient:
         except httpx.ConnectError:
             return {
                 "success": False,
-                "error": f"Could not connect to {self.base_url}. Verify worker IP, port, and firewall."
+                "error": f"Could not connect to {self.base_url}. Verify worker IP is correct and port {self.port} is not blocked."
             }
         except httpx.TimeoutException:
             return {
                 "success": False,
-                "error": f"Connection to {self.base_url} timed out (4s limit)."
+                "error": (
+                    f"Connection to {self.base_url} timed out ({int(timeout)}s limit).\n\n"
+                    "Common Causes & Fixes:\n"
+                    "1. Windows Defender Firewall on Host PC is blocking Port " + str(self.port) + ".\n"
+                    "   Fix: Run 'open_firewall_port_8000.bat' as Administrator on Host PC.\n"
+                    "2. Cat6 Direct Cable IP Mismatch:\n"
+                    "   Fix: Set static IPs on both PCs (e.g. Host: 192.168.2.1, Client: 192.168.2.2).\n"
+                    "3. Entered IP is Host's Wi-Fi instead of the Ethernet cable."
+                )
             }
         except Exception as e:
             return {

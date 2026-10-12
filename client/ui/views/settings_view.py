@@ -252,8 +252,8 @@ class SettingsView(ctk.CTkScrollableFrame):
         import threading
         def task():
             net = NetworkClient(host, port, token)
-            res = net.ping_and_health()
-            self.after(0, lambda: self._process_handshake(res, host, port, token))
+            res = net.ping_and_health(timeout=5.0)
+            self.after(0, lambda: self._process_handshake(res, net.host, str(net.port), token))
 
         threading.Thread(target=task, daemon=True).start()
 
