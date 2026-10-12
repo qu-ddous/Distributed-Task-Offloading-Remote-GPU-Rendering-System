@@ -55,14 +55,14 @@ class TopbarHeader(ctk.CTkFrame):
 
         self.btn_ping = ctk.CTkButton(
             right_box,
-            text="🔄 Re-Check",
-            width=90,
+            text="⚡ Auto-Connect",
+            width=115,
             height=32,
             corner_radius=8,
             font=ctk.CTkFont(size=12, weight="bold"),
-            fg_color="#E2E8F0",
-            hover_color="#CBD5E1",
-            text_color=TEXT_SECONDARY,
+            fg_color="#0D9488",
+            hover_color="#0F766E",
+            text_color="#FFFFFF",
             command=self.on_quick_connect
         )
         self.btn_ping.pack(side="left")

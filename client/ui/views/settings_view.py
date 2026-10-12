@@ -62,6 +62,19 @@ class SettingsView(ctk.CTkScrollableFrame):
         act_row = ctk.CTkFrame(card, fg_color="transparent")
         act_row.pack(fill="x", padx=22, pady=(0, 20))
 
+        # 1-Click Auto Discover Server button
+        self.btn_auto_discover = ctk.CTkButton(
+            act_row,
+            text="⚡  Auto-Discover Server",
+            command=self._on_auto_discover_clicked,
+            fg_color="#0D9488",
+            hover_color="#0F766E",
+            corner_radius=10,
+            height=38,
+            font=ctk.CTkFont(size=12, weight="bold")
+        )
+        self.btn_auto_discover.pack(side="left", padx=(0, 8))
+
         self.btn_test = ctk.CTkButton(
             act_row,
             text="🔄  Test & Connect",
@@ -89,10 +102,10 @@ class SettingsView(ctk.CTkScrollableFrame):
 
         self.btn_auto_cat6 = ctk.CTkButton(
             act_row,
-            text="⚡  Auto-Configure Cat6 (192.168.2.2)",
+            text="🌐  Cat6 Setup (192.168.2.2)",
             command=self._on_auto_cat6_clicked,
-            fg_color="#0D9488",
-            hover_color="#0F766E",
+            fg_color="#475569",
+            hover_color="#334155",
             corner_radius=10,
             height=38,
             font=ctk.CTkFont(size=12, weight="bold")
@@ -125,6 +138,29 @@ class SettingsView(ctk.CTkScrollableFrame):
             pady=6
         )
         self.lbl_verified_badge.pack(side="right")
+
+    def update_host_port_display(self, host: str, port: Any):
+        self.entry_host.delete(0, "end")
+        self.entry_host.insert(0, str(host))
+        self.entry_port.delete(0, "end")
+        self.entry_port.insert(0, str(port))
+        self._update_badge(True, str(host), str(port))
+
+    def _on_auto_discover_clicked(self):
+        self.btn_auto_discover.configure(state="disabled", text="🔍 Scanning Network...")
+        def on_done(success: bool, msg: str):
+            self.btn_auto_discover.configure(state="normal", text="⚡  Auto-Discover Server")
+            if success:
+                messagebox.showinfo("Auto-Discovery Successful", f"{msg}\n\nClient Studio is now connected!")
+            else:
+                messagebox.showwarning(
+                    "Auto-Discovery",
+                    f"{msg}\n\n"
+                    "Common Fixes:\n"
+                    "1. Make sure 'GPUWorkerServer.exe' is running on the Host PC.\n"
+                    "2. Verify both PCs are connected to the same Wi-Fi router or direct Cat6 cable."
+                )
+        self.app.auto_discover_and_connect(interactive=True, on_complete=on_done)
 
     def _update_badge(self, is_online: bool, host: str = "", port: Any = ""):
         if is_online:

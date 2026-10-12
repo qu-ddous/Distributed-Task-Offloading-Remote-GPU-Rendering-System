@@ -41,6 +41,8 @@ hiddenimports = [
     'server.app.services.connection_tracker',
     'server.ui',
     'server.ui.server_app',
+    'shared',
+    'shared.discovery',
 ]
 
 a = Analysis(

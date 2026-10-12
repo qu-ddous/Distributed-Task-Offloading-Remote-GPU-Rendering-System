@@ -21,6 +21,9 @@ hiddenimports = [
     'websockets',
     'pydantic',
     'pydantic_settings',
+    'psutil',
+    'shared',
+    'shared.discovery',
 ]
 
 a = Analysis(

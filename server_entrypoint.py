@@ -43,6 +43,14 @@ def main():
     server_thread = threading.Thread(target=server_instance.run, daemon=True)
     server_thread.start()
 
+    # Start Zero-Config Network Discovery Beacon & Silent Firewall Enforcer in background
+    try:
+        from shared.discovery import DiscoveryServer
+        discovery_srv = DiscoveryServer(port=settings.PORT)
+        discovery_srv.start()
+    except Exception as e:
+        logging.warning(f"Could not start DiscoveryServer: {e}")
+
     # Start Modern CustomTkinter Worker GUI
     gui_app = ServerApp(uvicorn_server_instance=server_instance)
     gui_app.mainloop()
