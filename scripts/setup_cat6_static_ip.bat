@@ -105,7 +105,7 @@ if ($choice -eq "1") {
 
     try {
         netsh advfirewall firewall delete rule name="GPU Worker Server Port 8000" | Out-Null
-        netsh advfirewall firewall add rule name="GPU Worker Server Port 8000" dir=in action=allow protocol=TCP localport=8000 profile=any | Out-Null
+        netsh advfirewall firewall add rule name="GPU Worker Server Port 8000" dir=in action=allow protocol=TCP localport=8000 | Out-Null
     } catch {}
 
     Write-Host ""

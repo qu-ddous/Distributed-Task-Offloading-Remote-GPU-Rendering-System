@@ -241,23 +241,76 @@ class SettingsView(ctk.CTkScrollableFrame):
 
     def _on_auto_cat6_clicked(self):
         import subprocess
+        import tempfile
+        from pathlib import Path
         try:
-            ps_code = (
-                "$ads = @(Get-NetAdapter -ErrorAction SilentlyContinue | Where-Object { $_.InterfaceAlias -notmatch 'Wi-Fi|Wireless|Virtual|Loopback|Bluetooth' }); "
-                "if (-not $ads) { $name = 'Ethernet' } else { $target = $ads | Where-Object { $_.Status -eq 'Up' } | Select-Object -First 1; if (-not $target) { $target = $ads[0] }; $name = $target.InterfaceAlias }; "
-                "netsh interface ipv4 set address name=\\\"$name\\\" static 192.168.2.2 255.255.255.0"
-            )
-            cmd = f'Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -Command \\"{ps_code}\\"" -Verb RunAs'
+            ps_script = """
+Write-Host "=========================================================================" -ForegroundColor Cyan
+Write-Host "      CLIENT / LAPTOP PC - CAT6 ETHERNET ONE-CLICK SETUP                 " -ForegroundColor Cyan
+Write-Host "=========================================================================" -ForegroundColor Cyan
+Write-Host ""
+
+$adapters = @(Get-NetAdapter -ErrorAction SilentlyContinue | Where-Object {
+    $_.InterfaceAlias -notmatch 'Wi-Fi|Wireless|WLAN|Virtual|vEthernet|Loopback|Bluetooth|Tailscale|ZeroTier|TAP|TUN' -and
+    $_.InterfaceDescription -notmatch 'Virtual|Hyper-V|VMware|Loopback|Bluetooth|TAP|TUN'
+})
+
+if ($adapters.Count -eq 0) {
+    try {
+        $lines = netsh interface show interface
+        foreach ($line in $lines) {
+            if ($line -match 'Dedicated' -and $line -notmatch 'Wi-Fi|Wireless|Loopback') {
+                $parts = ($line.Trim() -split '\\s{2,}')
+                if ($parts.Count -ge 4) {
+                    $adapters += [PSCustomObject]@{
+                        InterfaceAlias = $parts[3]
+                        Status = if ($parts[1] -match 'Connected') { 'Up' } else { 'Disconnected' }
+                    }
+                }
+            }
+        }
+    } catch {}
+}
+
+$alias = "Ethernet"
+if ($adapters.Count -gt 0) {
+    $target = $adapters | Where-Object { $_.Status -eq 'Up' } | Select-Object -First 1
+    if (-not $target) { $target = $adapters[0] }
+    $alias = $target.InterfaceAlias
+}
+
+Write-Host "Target Ethernet Adapter: '$alias'" -ForegroundColor Yellow
+Write-Host "Configuring Static IP 192.168.2.2 / 255.255.255.0..." -ForegroundColor Yellow
+
+netsh interface ipv4 set address name="$alias" static 192.168.2.2 255.255.255.0
+
+try {
+    Remove-NetIPAddress -InterfaceAlias $alias -AddressFamily IPv4 -Confirm:$false -ErrorAction SilentlyContinue
+    Remove-NetRoute -InterfaceAlias $alias -AddressFamily IPv4 -Confirm:$false -ErrorAction SilentlyContinue
+    New-NetIPAddress -InterfaceAlias $alias -IPAddress "192.168.2.2" -PrefixLength 24 -ErrorAction SilentlyContinue | Out-Null
+} catch {}
+
+Write-Host ""
+Write-Host "=========================================================================" -ForegroundColor Green
+Write-Host "  ✔ SUCCESS: Client PC configured! IP: 192.168.2.2." -ForegroundColor Green
+Write-Host "=========================================================================" -ForegroundColor Green
+Start-Sleep -Seconds 2
+"""
+            temp_file = Path(tempfile.gettempdir()) / "setup_cat6_client.ps1"
+            temp_file.write_text(ps_script.strip(), encoding="utf-8")
+
+            cmd = f'Start-Process powershell -ArgumentList \'-NoProfile -ExecutionPolicy Bypass -File "{str(temp_file)}"\' -Verb RunAs'
             subprocess.Popen(["powershell", "-NoProfile", "-Command", cmd])
+
             self.entry_host.delete(0, "end")
             self.entry_host.insert(0, "192.168.2.1")
             self.entry_port.delete(0, "end")
             self.entry_port.insert(0, "8000")
             messagebox.showinfo(
                 "Cat6 Auto-Configuration",
-                "Client IP (192.168.2.2) configuration has been requested via Administrator prompt.\n\n"
+                "Client IP (192.168.2.2) setup launched in Administrator window.\n\n"
                 "Worker Host address has been set to: 192.168.2.1:8000\n\n"
-                "Once the prompt is accepted, click '🔄 Test & Connect' to verify."
+                "Once the prompt completes, click '🔄 Test & Connect' to verify."
             )
         except Exception as e:
             messagebox.showerror("Error", f"Could not auto-configure IP: {e}")
