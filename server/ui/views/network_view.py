@@ -30,6 +30,8 @@ class NetworkView(ctk.CTkScrollableFrame):
         """Called immediately when user navigates to Network tab."""
         self.primary_ip = SystemService.get_primary_ip()
         self.lbl_worker_ip.configure(text=self.primary_ip)
+        if hasattr(self, "adapters_container"):
+            self._render_adapter_cards()
         self._refresh_network_status(reschedule=False)
 
     def _copy_ip_to_clipboard(self):
@@ -251,27 +253,108 @@ class NetworkView(ctk.CTkScrollableFrame):
         box = ctk.CTkFrame(c, fg_color="transparent")
         box.pack(fill="x", padx=20, pady=16)
 
-        ctk.CTkLabel(box, text="🔒  Firewall & Network Adapters", font=ctk.CTkFont(size=14, weight="bold"), text_color=TEXT_PRIMARY).pack(anchor="w")
+        # Header row
+        hdr_row = ctk.CTkFrame(box, fg_color="transparent")
+        hdr_row.pack(fill="x", pady=(0, 8))
+        ctk.CTkLabel(hdr_row, text="🔒  Firewall & Network Adapters", font=ctk.CTkFont(size=14, weight="bold"), text_color=TEXT_PRIMARY).pack(side="left")
+
+        # 1-Click Allow Firewall Button
+        btn_fw = ctk.CTkButton(
+            hdr_row,
+            text="🛡️ Allow Port 8000 in Windows Firewall",
+            font=ctk.CTkFont(size=11, weight="bold"),
+            height=28,
+            fg_color="#0D9488",
+            hover_color="#0F766E",
+            corner_radius=8,
+            command=self._open_firewall_port_8000
+        )
+        btn_fw.pack(side="right")
 
         f_row = ctk.CTkFrame(box, fg_color="transparent")
-        f_row.pack(fill="x", pady=(8, 4))
+        f_row.pack(fill="x", pady=(2, 8))
 
-        ctk.CTkLabel(f_row, text=f"● Port {settings.PORT} (TCP): Open & Listening", font=ctk.CTkFont(size=12, weight="bold"), text_color=ACCENT_GREEN).pack(side="left", padx=(0, 20))
-        ctk.CTkLabel(f_row, text="● Fast HTTP & WebSocket: Online", font=ctk.CTkFont(size=12, weight="bold"), text_color=ACCENT_GREEN).pack(side="left")
+        ctk.CTkLabel(f_row, text=f"● Port {settings.PORT} (TCP): Daemon Listening", font=ctk.CTkFont(size=12, weight="bold"), text_color=ACCENT_GREEN).pack(side="left", padx=(0, 20))
+        self.lbl_fw_status = ctk.CTkLabel(f_row, text="● Windows Firewall: Click button above if remote client times out", font=ctk.CTkFont(size=11), text_color=TEXT_MUTED)
+        self.lbl_fw_status.pack(side="left")
 
-        # Discovered Active Network Interfaces
+        # Container for detected adapters
+        self.adapters_container = ctk.CTkFrame(box, fg_color="transparent")
+        self.adapters_container.pack(fill="x", pady=(6, 8))
+        self._render_adapter_cards()
+
+        # Direct Cat6 setup tip box
+        tip_box = ctk.CTkFrame(box, fg_color=BG_CARD_ALT, corner_radius=8)
+        tip_box.pack(fill="x", pady=(4, 0))
+        ctk.CTkLabel(
+            tip_box,
+            text=(
+                "💡 Cat6 Direct Cable Tip: If connecting directly PC-to-PC with no router, set static IPs:\n"
+                "   • Host PC (this machine): 192.168.2.1 (Subnet: 255.255.255.0, Gateway: leave blank)\n"
+                "   • Client PC (laptop): 192.168.2.2 (Subnet: 255.255.255.0, Gateway: leave blank)\n"
+                "   Then in Client Studio, enter 192.168.2.1 and Port 8000."
+            ),
+            font=ctk.CTkFont(size=11),
+            text_color=TEXT_SECONDARY,
+            justify="left",
+            padx=12,
+            pady=8
+        ).pack(anchor="w")
+
+    def _open_firewall_port_8000(self):
+        import subprocess
+        try:
+            cmd = 'Start-Process netsh -ArgumentList "advfirewall firewall add rule name=\\"GPU Worker Server Port 8000\\" dir=in action=allow protocol=TCP localport=8000 profile=any" -Verb RunAs'
+            subprocess.Popen(["powershell", "-NoProfile", "-Command", cmd])
+            self.lbl_fw_status.configure(text="✔ Firewall Rule Requested (Allow Port 8000)", text_color=ACCENT_GREEN)
+        except Exception as e:
+            self.lbl_fw_status.configure(text=f"Error requesting firewall: {e}", text_color=ACCENT_RED)
+
+    def _render_adapter_cards(self):
+        for w in self.adapters_container.winfo_children():
+            w.destroy()
+
         adapters = [ad for ad in SystemService.get_all_lan_adapters() if ad.get("is_up") and not ad.get("is_virtual")]
         if not adapters:
             adapters = [ad for ad in SystemService.get_all_lan_adapters() if not ad.get("is_virtual")]
 
-        if adapters:
-            ad_box = ctk.CTkFrame(box, fg_color=BG_CARD_ALT, corner_radius=10)
-            ad_box.pack(fill="x", pady=(8, 0))
-            for i, ad in enumerate(adapters):
-                tag = f"● {ad['type']} ({ad['interface']}): {ad['ip']}"
-                clr = ACCENT_BLUE if ad['ip'] == self.primary_ip else ACCENT_GREEN
-                lbl = ctk.CTkLabel(ad_box, text=tag, font=ctk.CTkFont(size=11, weight="bold"), text_color=clr)
-                lbl.pack(side="left", padx=12, pady=6)
+        for ad in adapters:
+            ip = ad["ip"]
+            is_rec = (ip == self.primary_ip)
+            row = ctk.CTkFrame(self.adapters_container, fg_color=BG_CARD_ALT, corner_radius=8)
+            row.pack(fill="x", pady=3)
+
+            left = ctk.CTkFrame(row, fg_color="transparent")
+            left.pack(side="left", padx=10, pady=6)
+
+            tag = f"{ad['type']}  [{ad['interface']}]"
+            ctk.CTkLabel(left, text=tag, font=ctk.CTkFont(size=11, weight="bold"), text_color=TEXT_PRIMARY).pack(side="left", padx=(0, 10))
+
+            clr = ACCENT_BLUE if is_rec else ACCENT_GREEN
+            rec_tag = " (Recommended)" if is_rec else ""
+            ctk.CTkLabel(left, text=f"IP: {ip}{rec_tag}", font=ctk.CTkFont(size=11, weight="bold"), text_color=clr).pack(side="left")
+
+            def make_copy_fn(target_ip=ip):
+                def fn():
+                    try:
+                        self.clipboard_clear()
+                        self.clipboard_append(target_ip)
+                    except Exception:
+                        pass
+                return fn
+
+            btn = ctk.CTkButton(
+                row,
+                text="📋 Copy IP",
+                font=ctk.CTkFont(size=10, weight="bold"),
+                width=72,
+                height=22,
+                corner_radius=6,
+                fg_color=ACCENT_BLUE if is_rec else "#64748B",
+                hover_color=ACCENT_BLUE_HOVER,
+                command=make_copy_fn(ip)
+            )
+            btn.pack(side="right", padx=10, pady=6)
 
     def _refresh_network_status(self, reschedule: bool = True):
         try:
