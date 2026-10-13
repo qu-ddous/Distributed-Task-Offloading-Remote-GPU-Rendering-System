@@ -70,7 +70,7 @@ class App(ctk.CTk):
         self._heartbeat_running = True
         self._user_manually_disconnected = False
 
-        # Automatically check and connect to Cat6 Host (192.168.2.1:8000) on startup
+        # Check connection to configured server on startup
         self.after(500, self._startup_connection_check)
 
         # Start continuous background heartbeat monitor (only pings when is_connected == True)
@@ -153,45 +153,25 @@ class App(ctk.CTk):
             else:
                 btn.configure(fg_color="transparent", text_color=TEXT_SECONDARY)
 
-    def connect_cat6_worker(self, interactive: bool = False, on_complete: Optional[Callable[[bool, str], None]] = None):
-        """
-        Connects to GPU Worker exclusively over direct Cat6 Ethernet cable:
-        1. Silently ensures Client Ethernet adapter is configured for 192.168.2.2.
-        2. Tests handshake directly to Host 192.168.2.1:8000.
-        """
+    def _startup_connection_check(self):
+        host = self.config_data.get("server_host", "127.0.0.1")
+        port = self.config_data.get("server_port", 8000)
+        token = self.config_data.get("api_token", "")
+
         def task():
-            from shared.cat6_network import auto_configure_client_cat6, HOST_CAT6_IP, CAT6_PORT
-            try:
-                auto_configure_client_cat6(elevate_if_needed=False)
-            except Exception:
-                pass
-
-            token = self.config_data.get("api_token", "")
-            net = NetworkClient(HOST_CAT6_IP, CAT6_PORT, token)
+            net = NetworkClient(host, port, token)
             res = net.ping_and_health(timeout=3.0)
-
-            def handle_ui():
-                if res.get("success"):
-                    lat = res.get("latency_ms", 0)
-                    data = res.get("data", {})
-                    self.on_connection_success(HOST_CAT6_IP, CAT6_PORT, token, lat, data)
-                    if "settings" in self.views and hasattr(self.views["settings"], "update_host_port_display"):
-                        self.views["settings"].update_host_port_display(HOST_CAT6_IP, CAT6_PORT)
-                    if on_complete:
-                        on_complete(True, f"Connected to GPU Worker at {HOST_CAT6_IP}:{CAT6_PORT} over Cat6!")
-                else:
-                    err = res.get("error", f"Could not reach Host at {HOST_CAT6_IP}:{CAT6_PORT}")
-                    if not self.is_connected:
-                        self.on_connection_failure(err)
-                    if on_complete:
-                        on_complete(False, err)
-
-            self.after(0, handle_ui)
+            self.after(0, lambda: self._process_handshake_result(res, host, port, token))
 
         threading.Thread(target=task, daemon=True).start()
 
-    def _startup_connection_check(self):
-        self.connect_cat6_worker(interactive=False)
+    def _process_handshake_result(self, res: dict, host: str, port: int, token: str):
+        if res.get("success"):
+            lat = res.get("latency_ms", 0)
+            data = res.get("data", {})
+            self.on_connection_success(host, port, token, lat, data)
+        else:
+            self.on_connection_failure(res.get("error", "Offline"))
 
     def _start_heartbeat_monitor(self):
         import time

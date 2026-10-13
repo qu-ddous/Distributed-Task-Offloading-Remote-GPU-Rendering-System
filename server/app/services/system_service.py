@@ -395,36 +395,9 @@ class SystemService:
     def get_primary_ip(cls) -> str:
         """
         Determines the system's actual local IPv4 LAN address (e.g. 192.168.x.x, 10.x.x.x).
-        Prioritizes active physical adapters: Ethernet first (highest speed for Cat6 rendering), then Wi-Fi.
-        Falls back cleanly to direct Ethernet cable (169.254.x.x) if no router is present.
+        Uses UDP routing probe to determine active outbound IP first, then falls back to active adapters.
         """
-        adapters = cls.get_all_lan_adapters()
-
-        # 1. Active physical UP Ethernet adapter with private LAN IP (Highest Priority for Cat6 rendering)
-        for ad in adapters:
-            if ad["is_up"] and not ad["is_virtual"] and "ethernet" in ad["type"].lower():
-                ip = ad["ip"]
-                if ip.startswith("192.168.") or ip.startswith("10.") or (ip.startswith("172.") and not ip.startswith("172.17.")):
-                    return ip
-
-        # 2. Active physical UP Wi-Fi or other adapter with private LAN IP
-        for ad in adapters:
-            if ad["is_up"] and not ad["is_virtual"]:
-                ip = ad["ip"]
-                if ip.startswith("192.168.") or ip.startswith("10.") or (ip.startswith("172.") and not ip.startswith("172.17.")):
-                    return ip
-
-        # 3. Direct LAN cable (APIPA 169.254.x.x) on active physical Ethernet interface
-        for ad in adapters:
-            if ad["is_up"] and not ad["is_virtual"] and "ethernet" in ad["type"].lower() and ad["ip"].startswith("169.254."):
-                return ad["ip"]
-
-        # 4. Any direct cable (APIPA 169.254.x.x) on active physical interface
-        for ad in adapters:
-            if ad["is_up"] and not ad["is_virtual"] and ad["ip"].startswith("169.254."):
-                return ad["ip"]
-
-        # 5. UDP routing probe
+        # 1. Standard UDP routing probe (identifies the actual active network interface)
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             s.connect(("8.8.8.8", 80))
@@ -435,7 +408,21 @@ class SystemService:
         except Exception:
             pass
 
-        # 6. Any non-loopback IP
+        adapters = cls.get_all_lan_adapters()
+
+        # 2. Active physical UP adapter with private LAN IP
+        for ad in adapters:
+            if ad.get("is_up") and not ad.get("is_virtual"):
+                ip = ad["ip"]
+                if ip.startswith("192.168.") or ip.startswith("10.") or (ip.startswith("172.") and not ip.startswith("172.17.")):
+                    return ip
+
+        # 3. Direct LAN cable (APIPA 169.254.x.x) on active physical interface
+        for ad in adapters:
+            if ad.get("is_up") and not ad.get("is_virtual") and ad["ip"].startswith("169.254."):
+                return ad["ip"]
+
+        # 4. Any non-loopback IP
         for ad in adapters:
             if not ad["ip"].startswith("127."):
                 return ad["ip"]

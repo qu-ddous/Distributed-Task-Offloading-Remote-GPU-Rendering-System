@@ -256,39 +256,13 @@ class NetworkView(ctk.CTkScrollableFrame):
         # Header row
         hdr_row = ctk.CTkFrame(box, fg_color="transparent")
         hdr_row.pack(fill="x", pady=(0, 8))
-        ctk.CTkLabel(hdr_row, text="🔒  Firewall & Network Adapters", font=ctk.CTkFont(size=14, weight="bold"), text_color=TEXT_PRIMARY).pack(side="left")
-
-        # 1-Click Auto Cat6 Setup Button
-        btn_cat6 = ctk.CTkButton(
-            hdr_row,
-            text="⚡ Auto-Configure Cat6 (Host: 192.168.2.1)",
-            font=ctk.CTkFont(size=11, weight="bold"),
-            height=28,
-            fg_color=ACCENT_BLUE,
-            hover_color=ACCENT_BLUE_HOVER,
-            corner_radius=8,
-            command=self._auto_setup_cat6_host
-        )
-        btn_cat6.pack(side="right", padx=(6, 0))
-
-        # 1-Click Allow Firewall Button
-        btn_fw = ctk.CTkButton(
-            hdr_row,
-            text="🛡️ Allow Port 8000 in Firewall",
-            font=ctk.CTkFont(size=11, weight="bold"),
-            height=28,
-            fg_color="#0D9488",
-            hover_color="#0F766E",
-            corner_radius=8,
-            command=self._open_firewall_port_8000
-        )
-        btn_fw.pack(side="right")
+        ctk.CTkLabel(hdr_row, text="🌐  Network Adapters & Connection Guide", font=ctk.CTkFont(size=14, weight="bold"), text_color=TEXT_PRIMARY).pack(side="left")
 
         f_row = ctk.CTkFrame(box, fg_color="transparent")
         f_row.pack(fill="x", pady=(2, 8))
 
-        ctk.CTkLabel(f_row, text=f"● Port {settings.PORT} (TCP): Daemon Listening", font=ctk.CTkFont(size=12, weight="bold"), text_color=ACCENT_GREEN).pack(side="left", padx=(0, 20))
-        self.lbl_fw_status = ctk.CTkLabel(f_row, text="● Status: Ready for connections", font=ctk.CTkFont(size=11), text_color=TEXT_MUTED)
+        ctk.CTkLabel(f_row, text=f"● Port {settings.PORT} (TCP): Server Listening", font=ctk.CTkFont(size=12, weight="bold"), text_color=ACCENT_GREEN).pack(side="left", padx=(0, 20))
+        self.lbl_fw_status = ctk.CTkLabel(f_row, text="● Status: Ready for Client Studio Connections", font=ctk.CTkFont(size=11), text_color=TEXT_MUTED)
         self.lbl_fw_status.pack(side="left")
 
         # Container for detected adapters
@@ -296,16 +270,17 @@ class NetworkView(ctk.CTkScrollableFrame):
         self.adapters_container.pack(fill="x", pady=(6, 8))
         self._render_adapter_cards()
 
-        # Direct Cat6 setup tip box
+        # Connection instructions tip box
         tip_box = ctk.CTkFrame(box, fg_color=BG_CARD_ALT, corner_radius=8)
         tip_box.pack(fill="x", pady=(4, 0))
         ctk.CTkLabel(
             tip_box,
             text=(
-                "💡 Cat6 Direct Cable Tip: If connecting directly PC-to-PC with no router, set static IPs:\n"
-                "   • Host PC (this machine): 192.168.2.1 (Subnet: 255.255.255.0, Gateway: leave blank)\n"
-                "   • Client PC (laptop): 192.168.2.2 (Subnet: 255.255.255.0, Gateway: leave blank)\n"
-                "   Then in Client Studio, enter 192.168.2.1 and Port 8000."
+                f"💡 How to Connect from Client PC:\n"
+                f"   1. Note the Detected Worker IP above (or copy an IP from the adapters list below).\n"
+                f"   2. Open GPURenderStudio on your client laptop/PC.\n"
+                f"   3. In Settings, enter the Worker IP and Port {settings.PORT}.\n"
+                f"   4. Click 'Test & Connect' to establish connection."
             ),
             font=ctk.CTkFont(size=11),
             text_color=TEXT_SECONDARY,
@@ -313,115 +288,6 @@ class NetworkView(ctk.CTkScrollableFrame):
             padx=12,
             pady=8
         ).pack(anchor="w")
-
-    def _run_elevated_ps1(self, ps_script_content: str, temp_filename: str):
-        import ctypes
-        import subprocess
-        import tempfile
-        from pathlib import Path
-
-        temp_file = Path(tempfile.gettempdir()) / temp_filename
-        temp_file.write_text(ps_script_content.strip(), encoding="utf-8")
-
-        # First try native ShellExecuteW with "runas" to trigger UAC directly without nested shell quotation issues
-        try:
-            ret = ctypes.windll.shell32.ShellExecuteW(
-                None,
-                "runas",
-                "powershell.exe",
-                f'-NoProfile -ExecutionPolicy Bypass -File "{str(temp_file)}"',
-                None,
-                1  # SW_SHOWNORMAL
-            )
-            if ret > 32:
-                return True
-        except Exception:
-            pass
-
-        # Fallback to subprocess with Start-Process
-        cmd = f'Start-Process powershell -ArgumentList \'-NoProfile -ExecutionPolicy Bypass -File "{str(temp_file)}"\' -Verb RunAs'
-        subprocess.Popen(["powershell", "-NoProfile", "-Command", cmd])
-        return True
-
-    def _auto_setup_cat6_host(self):
-        try:
-            ps_script = r"""
-Write-Host "=========================================================================" -ForegroundColor Cyan
-Write-Host "       HOST / SERVER PC - CAT6 ETHERNET ONE-CLICK SETUP                  " -ForegroundColor Cyan
-Write-Host "=========================================================================" -ForegroundColor Cyan
-Write-Host ""
-
-$adapters = @(Get-NetAdapter -ErrorAction SilentlyContinue | Where-Object {
-    $_.InterfaceAlias -notmatch 'Wi-Fi|Wireless|WLAN|Virtual|vEthernet|Loopback|Bluetooth|Tailscale|ZeroTier|TAP|TUN|Cellular|\*' -and
-    $_.InterfaceDescription -notmatch 'Virtual|Hyper-V|VMware|Loopback|Bluetooth|TAP|TUN|Cellular'
-})
-
-if ($adapters.Count -eq 0) {
-    try {
-        $lines = netsh interface show interface
-        foreach ($line in $lines) {
-            if ($line -match 'Dedicated' -and $line -notmatch 'Wi-Fi|Wireless|Loopback|Cellular|\*') {
-                $parts = ($line.Trim() -split '\\s{2,}')
-                if ($parts.Count -ge 4) {
-                    $adapters += [PSCustomObject]@{
-                        InterfaceAlias = $parts[3]
-                        Status = if ($parts[1] -match 'Connected') { 'Up' } else { 'Disconnected' }
-                    }
-                }
-            }
-        }
-    } catch {}
-}
-
-$alias = "Ethernet"
-if ($adapters.Count -gt 0) {
-    $target = $adapters | Where-Object { ($_.InterfaceAlias -match 'Ethernet|LAN') -and $_.Status -eq 'Up' } | Select-Object -First 1
-    if (-not $target) { $target = $adapters | Where-Object { $_.Status -eq 'Up' } | Select-Object -First 1 }
-    if (-not $target) { $target = $adapters | Where-Object { $_.InterfaceAlias -match 'Ethernet|LAN' } | Select-Object -First 1 }
-    if (-not $target) { $target = $adapters[0] }
-    $alias = $target.InterfaceAlias
-}
-
-Write-Host "Target Ethernet Adapter: '$alias'" -ForegroundColor Yellow
-Write-Host "Assigning Static IP 192.168.2.1 / 255.255.255.0..." -ForegroundColor Yellow
-
-& netsh.exe interface ipv4 set address name="$alias" static 192.168.2.1 255.255.255.0
-
-try {
-    Get-NetIPAddress -InterfaceAlias $alias -AddressFamily IPv4 -ErrorAction SilentlyContinue | Remove-NetIPAddress -Confirm:$false -ErrorAction SilentlyContinue
-    Remove-NetRoute -InterfaceAlias $alias -AddressFamily IPv4 -Confirm:$false -ErrorAction SilentlyContinue
-    New-NetIPAddress -InterfaceAlias $alias -IPAddress "192.168.2.1" -PrefixLength 24 -ErrorAction SilentlyContinue | Out-Null
-} catch {}
-
-Write-Host "Configuring Windows Defender Firewall for Port 8000..." -ForegroundColor Yellow
-& netsh.exe advfirewall firewall delete rule name="GPU Worker Server Port 8000"
-& netsh.exe advfirewall firewall add rule name="GPU Worker Server Port 8000" dir=in action=allow protocol=TCP localport=8000
-
-Write-Host ""
-Write-Host "=========================================================================" -ForegroundColor Green
-Write-Host "  ✔ SUCCESS: Host PC configured! IP: 192.168.2.1, Port 8000 Allowed." -ForegroundColor Green
-Write-Host "=========================================================================" -ForegroundColor Green
-Start-Sleep -Seconds 3
-"""
-            self._run_elevated_ps1(ps_script, "setup_cat6_host.ps1")
-            self.lbl_fw_status.configure(text="✔ Setup launched in Administrator window (accept UAC prompt)", text_color=ACCENT_GREEN)
-            self.after(3500, self.on_page_shown)
-        except Exception as e:
-            self.lbl_fw_status.configure(text=f"Error: {e}", text_color=ACCENT_RED)
-
-    def _open_firewall_port_8000(self):
-        try:
-            ps_script = """
-Write-Host "Opening Port 8000 in Windows Defender Firewall..." -ForegroundColor Cyan
-& netsh.exe advfirewall firewall delete rule name="GPU Worker Server Port 8000"
-& netsh.exe advfirewall firewall add rule name="GPU Worker Server Port 8000" dir=in action=allow protocol=TCP localport=8000
-Write-Host "Port 8000 is now OPEN for remote connections!" -ForegroundColor Green
-Start-Sleep -Seconds 3
-"""
-            self._run_elevated_ps1(ps_script, "open_fw_8000.ps1")
-            self.lbl_fw_status.configure(text="✔ Firewall Rule Requested (Allow Port 8000)", text_color=ACCENT_GREEN)
-        except Exception as e:
-            self.lbl_fw_status.configure(text=f"Error requesting firewall: {e}", text_color=ACCENT_RED)
 
     def _render_adapter_cards(self):
         for w in self.adapters_container.winfo_children():

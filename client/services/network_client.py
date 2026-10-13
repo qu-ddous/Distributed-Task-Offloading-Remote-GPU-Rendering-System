@@ -87,20 +87,12 @@ class NetworkClient:
         except httpx.ConnectError:
             return {
                 "success": False,
-                "error": f"Could not connect to {self.base_url}. Verify worker IP is correct and port {self.port} is not blocked."
+                "error": f"Could not connect to {self.base_url}. Verify worker IP is correct and server is running."
             }
         except httpx.TimeoutException:
             return {
                 "success": False,
-                "error": (
-                    f"Connection to {self.base_url} timed out ({int(timeout)}s limit).\n\n"
-                    "Common Causes & Fixes:\n"
-                    "1. Windows Defender Firewall on Host PC is blocking Port " + str(self.port) + ".\n"
-                    "   Fix: Run 'open_firewall_port_8000.bat' as Administrator on Host PC.\n"
-                    "2. Cat6 Direct Cable IP Mismatch:\n"
-                    "   Fix: Set static IPs on both PCs (e.g. Host: 192.168.2.1, Client: 192.168.2.2).\n"
-                    "3. Entered IP is Host's Wi-Fi instead of the Ethernet cable."
-                )
+                "error": f"Connection to {self.base_url} timed out ({int(timeout)}s limit)."
             }
         except Exception as e:
             return {

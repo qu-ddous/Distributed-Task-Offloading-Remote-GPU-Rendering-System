@@ -43,13 +43,6 @@ def main():
     server_thread = threading.Thread(target=server_instance.run, daemon=True)
     server_thread.start()
 
-    # Automatically configure Cat6 Ethernet Host IP (192.168.2.1) and Firewall in background
-    try:
-        from shared.cat6_network import auto_configure_host_cat6
-        threading.Thread(target=lambda: auto_configure_host_cat6(elevate_if_needed=False), daemon=True).start()
-    except Exception as e:
-        logging.warning(f"Cat6 auto-config note: {e}")
-
     # Start Modern CustomTkinter Worker GUI
     gui_app = ServerApp(uvicorn_server_instance=server_instance)
     gui_app.mainloop()

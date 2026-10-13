@@ -41,9 +41,9 @@ class SettingsView(ctk.CTkScrollableFrame):
         grid.grid_columnconfigure(1, weight=1)
 
         # Worker Host IP
-        ctk.CTkLabel(grid, text="Worker IPv4 Address (Cat6: 192.168.2.1)", font=ctk.CTkFont(size=12, weight="bold"), text_color=TEXT_SECONDARY).grid(row=0, column=0, sticky="w", pady=(0, 4))
-        self.entry_host = ctk.CTkEntry(grid, placeholder_text="192.168.2.1", fg_color=BG_INPUT, border_color=BORDER_COLOR, corner_radius=10, height=38, text_color=TEXT_PRIMARY)
-        self.entry_host.insert(0, str(self.app.config_data.get("server_host", "192.168.2.1")))
+        ctk.CTkLabel(grid, text="Worker IPv4 Address", font=ctk.CTkFont(size=12, weight="bold"), text_color=TEXT_SECONDARY).grid(row=0, column=0, sticky="w", pady=(0, 4))
+        self.entry_host = ctk.CTkEntry(grid, placeholder_text="127.0.0.1 or LAN IP", fg_color=BG_INPUT, border_color=BORDER_COLOR, corner_radius=10, height=38, text_color=TEXT_PRIMARY)
+        self.entry_host.insert(0, str(self.app.config_data.get("server_host", "127.0.0.1")))
         self.entry_host.grid(row=1, column=0, sticky="ew", padx=(0, 10), pady=(0, 14))
 
         # Port
@@ -61,19 +61,6 @@ class SettingsView(ctk.CTkScrollableFrame):
         # Action row (Buttons & Verified Badge)
         act_row = ctk.CTkFrame(card, fg_color="transparent")
         act_row.pack(fill="x", padx=22, pady=(0, 20))
-
-        # 1-Click Auto Configure Cat6 & Connect
-        self.btn_auto_cat6 = ctk.CTkButton(
-            act_row,
-            text="⚡  Auto-Configure Cat6 & Connect",
-            command=self._on_auto_cat6_clicked,
-            fg_color="#0D9488",
-            hover_color="#0F766E",
-            corner_radius=10,
-            height=38,
-            font=ctk.CTkFont(size=12, weight="bold")
-        )
-        self.btn_auto_cat6.pack(side="left", padx=(0, 8))
 
         self.btn_test = ctk.CTkButton(
             act_row,
@@ -102,7 +89,7 @@ class SettingsView(ctk.CTkScrollableFrame):
 
         self.btn_reset = ctk.CTkButton(
             act_row,
-            text="🗑️  Reset (192.168.2.1)",
+            text="🗑️  Reset (127.0.0.1)",
             command=self._on_reset_connection_clicked,
             fg_color="#F1F5F9",
             hover_color="#E2E8F0",
@@ -113,7 +100,7 @@ class SettingsView(ctk.CTkScrollableFrame):
         )
         self.btn_reset.pack(side="left")
 
-        curr_host = self.app.config_data.get("server_host", "192.168.2.1")
+        curr_host = self.app.config_data.get("server_host", "127.0.0.1")
         curr_port = self.app.config_data.get("server_port", 8000)
         self.lbl_verified_badge = ctk.CTkLabel(
             act_row,
@@ -247,112 +234,15 @@ class SettingsView(ctk.CTkScrollableFrame):
         self._update_badge(False)
         messagebox.showinfo("Disconnected", "Server disconnected successfully. Client Studio is now in Offline mode.")
 
-    def _run_elevated_ps1(self, ps_script_content: str, temp_filename: str):
-        import ctypes
-        import subprocess
-        import tempfile
-        from pathlib import Path
-
-        temp_file = Path(tempfile.gettempdir()) / temp_filename
-        temp_file.write_text(ps_script_content.strip(), encoding="utf-8")
-
-        # Native ShellExecuteW with "runas" verb triggers UAC elevation directly without PowerShell string escaping issues
-        try:
-            ret = ctypes.windll.shell32.ShellExecuteW(
-                None,
-                "runas",
-                "powershell.exe",
-                f'-NoProfile -ExecutionPolicy Bypass -File "{str(temp_file)}"',
-                None,
-                1  # SW_SHOWNORMAL
-            )
-            if ret > 32:
-                return True
-        except Exception:
-            pass
-
-        # Fallback to subprocess with Start-Process
-        cmd = f'Start-Process powershell -ArgumentList \'-NoProfile -ExecutionPolicy Bypass -File "{str(temp_file)}"\' -Verb RunAs'
-        subprocess.Popen(["powershell", "-NoProfile", "-Command", cmd])
-        return True
-
-    def _on_auto_cat6_clicked(self):
-        try:
-            ps_script = r"""
-Write-Host "=========================================================================" -ForegroundColor Cyan
-Write-Host "      CLIENT / LAPTOP PC - CAT6 ETHERNET ONE-CLICK SETUP                 " -ForegroundColor Cyan
-Write-Host "=========================================================================" -ForegroundColor Cyan
-Write-Host ""
-
-$adapters = @(Get-NetAdapter -ErrorAction SilentlyContinue | Where-Object {
-    $_.InterfaceAlias -notmatch 'Wi-Fi|Wireless|WLAN|Virtual|vEthernet|Loopback|Bluetooth|Tailscale|ZeroTier|TAP|TUN|Cellular|\*' -and
-    $_.InterfaceDescription -notmatch 'Virtual|Hyper-V|VMware|Loopback|Bluetooth|TAP|TUN|Cellular'
-})
-
-if ($adapters.Count -eq 0) {
-    try {
-        $lines = netsh interface show interface
-        foreach ($line in $lines) {
-            if ($line -match 'Dedicated' -and $line -notmatch 'Wi-Fi|Wireless|Loopback|Cellular|\*') {
-                $parts = ($line.Trim() -split '\\s{2,}')
-                if ($parts.Count -ge 4) {
-                    $adapters += [PSCustomObject]@{
-                        InterfaceAlias = $parts[3]
-                        Status = if ($parts[1] -match 'Connected') { 'Up' } else { 'Disconnected' }
-                    }
-                }
-            }
-        }
-    } catch {}
-}
-
-$alias = "Ethernet"
-if ($adapters.Count -gt 0) {
-    $target = $adapters | Where-Object { ($_.InterfaceAlias -match 'Ethernet|LAN') -and $_.Status -eq 'Up' } | Select-Object -First 1
-    if (-not $target) { $target = $adapters | Where-Object { $_.Status -eq 'Up' } | Select-Object -First 1 }
-    if (-not $target) { $target = $adapters | Where-Object { $_.InterfaceAlias -match 'Ethernet|LAN' } | Select-Object -First 1 }
-    if (-not $target) { $target = $adapters[0] }
-    $alias = $target.InterfaceAlias
-}
-
-Write-Host "Target Ethernet Adapter: '$alias'" -ForegroundColor Yellow
-Write-Host "Configuring Static IP 192.168.2.2 / 255.255.255.0..." -ForegroundColor Yellow
-
-& netsh.exe interface ipv4 set address name="$alias" static 192.168.2.2 255.255.255.0
-
-try {
-    Get-NetIPAddress -InterfaceAlias $alias -AddressFamily IPv4 -ErrorAction SilentlyContinue | Remove-NetIPAddress -Confirm:$false -ErrorAction SilentlyContinue
-    Remove-NetRoute -InterfaceAlias $alias -AddressFamily IPv4 -Confirm:$false -ErrorAction SilentlyContinue
-    New-NetIPAddress -InterfaceAlias $alias -IPAddress "192.168.2.2" -PrefixLength 24 -ErrorAction SilentlyContinue | Out-Null
-} catch {}
-
-Write-Host ""
-Write-Host "=========================================================================" -ForegroundColor Green
-Write-Host "  ✔ SUCCESS: Client PC configured! IP: 192.168.2.2." -ForegroundColor Green
-Write-Host "=========================================================================" -ForegroundColor Green
-Start-Sleep -Seconds 3
-"""
-            self._run_elevated_ps1(ps_script, "setup_cat6_client.ps1")
-
-            self.entry_host.delete(0, "end")
-            self.entry_host.insert(0, "192.168.2.1")
-            self.entry_port.delete(0, "end")
-            self.entry_port.insert(0, "8000")
-
-            # Automatically test and connect after script finishes applying static IP
-            self.after(2600, self._on_test_handshake_clicked)
-        except Exception as e:
-            messagebox.showerror("Error", f"Could not auto-configure IP: {e}")
-
     def _on_reset_connection_clicked(self):
         self.entry_host.delete(0, "end")
-        self.entry_host.insert(0, "192.168.2.1")
+        self.entry_host.insert(0, "127.0.0.1")
         self.entry_port.delete(0, "end")
         self.entry_port.insert(0, "8000")
         self.entry_token.delete(0, "end")
         self.app.disconnect_server()
         self._update_badge(False)
-        messagebox.showinfo("Reset", "Host reset to Cat6 direct cable 192.168.2.1:8000. Click 'Test & Connect' to verify.")
+        messagebox.showinfo("Reset", "Host reset to 127.0.0.1:8000. Enter your server's IP address and click 'Test & Connect'.")
 
     def _on_test_handshake_clicked(self):
         host = self.entry_host.get().strip()
@@ -382,12 +272,12 @@ Start-Sleep -Seconds 3
             p_int = int(port) if str(port).isdigit() else 8000
             self.app.on_connection_success(host, p_int, token, lat, data)
             self._update_badge(True, host, port)
-            messagebox.showinfo("Handshake Successful", f"Worker at {host}:{port} is online & reachable!\n\nRound-trip Latency: {lat} ms\nProtocol: {data.get('protocol_version')}")
+            messagebox.showinfo("Connection Successful", f"Worker at {host}:{port} is online & reachable!\n\nRound-trip Latency: {lat} ms\nProtocol: {data.get('protocol_version', 'v1.0.0')}")
         else:
             err = res.get("error", "Unknown connection failure")
             self.app.on_connection_failure(err)
             self._update_badge(False)
-            messagebox.showerror("Handshake Failed", f"Could not connect to worker at {host}:{port}:\n\n{err}\n\nMake sure the worker server is running and the IP address is correct.")
+            messagebox.showerror("Connection Failed", f"Could not connect to worker at {host}:{port}:\n\n{err}\n\nMake sure the worker server is running and the IP address is correct.")
 
     def _on_save_clicked(self):
         new_host = self.entry_host.get().strip()

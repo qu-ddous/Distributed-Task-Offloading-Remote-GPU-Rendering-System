@@ -42,7 +42,6 @@ hiddenimports = [
     'server.ui',
     'server.ui.server_app',
     'shared',
-    'shared.cat6_network',
 ]
 
 a = Analysis(
