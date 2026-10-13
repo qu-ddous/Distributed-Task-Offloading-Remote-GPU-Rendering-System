@@ -194,10 +194,11 @@ class JobManager:
                 return
 
             # Determine best encoder
+            hw_candidates = ["h264_nvenc", "h264_qsv", "h264_amf", "h264_mf"]
             chosen_encoder = None
-            for hw_enc in ["h264_nvenc", "h264_qsv", "h264_amf", "h264_mf"]:
-                if hw_enc in supported_encoders:
-                    chosen_encoder = hw_enc
+            for enc in supported_encoders:
+                if enc in hw_candidates:
+                    chosen_encoder = enc
                     break
 
             if not chosen_encoder:
@@ -235,72 +236,128 @@ class JobManager:
             video_duration = FFmpegService.get_video_duration(job.input_path)
             job.duration_total_sec = video_duration
 
-            # Build command
-            cmd = FFmpegService.build_ffmpeg_command(
-                input_path=job.input_path,
-                output_path=job.output_path,
-                resolution=job.resolution,
-                bitrate=job.bitrate,
-                preset=job.preset,
-                use_nvenc=True,
-                encoder=chosen_encoder
-            )
-
-            await self.broadcast(job.job_id, {
-                "type": "log",
-                "job_id": job.job_id,
-                "level": "INFO",
-                "message": f"FFmpeg command: {' '.join(cmd)}"
-            })
+            # Prepare encoder execution list (initial choice + optional CPU fallback retry)
+            encoder_attempts = [chosen_encoder]
+            if chosen_encoder != "libx264" and (job.allow_cpu_fallback or settings.ALLOW_CPU_FALLBACK):
+                encoder_attempts.append("libx264")
 
             try:
-                with open(job.log_path, "w", encoding="utf-8") as log_file:
-                    log_file.write(f"FFmpeg command: {' '.join(cmd)}\n\n")
+                for attempt_idx, enc in enumerate(encoder_attempts):
+                    if attempt_idx > 0:
+                        # Clean up partial output from failed hardware attempt
+                        try:
+                            if job.output_path.exists():
+                                job.output_path.unlink()
+                        except Exception:
+                            pass
+                        job.progress_percent = 0.0
+                        job.elapsed_seconds = 0.0
+                        job.speed = "0.0x"
+                        job.current_fps = 0.0
+                        await self.broadcast(job.job_id, {
+                            "type": "log",
+                            "job_id": job.job_id,
+                            "level": "WARNING",
+                            "message": "Retrying video transcode with multi-threaded CPU fallback (libx264)..."
+                        })
 
-                job.process = await asyncio.create_subprocess_exec(
-                    *cmd,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE
-                )
-
-                # Read progress and stderr concurrently
-                progress_task = asyncio.create_task(self._stream_progress(job))
-                stderr_task = asyncio.create_task(self._stream_stderr(job))
-
-                await asyncio.gather(progress_task, stderr_task)
-                await job.process.wait()
-
-                if job._cancelled:
-                    job.status = JobStatus.CANCELLED
-                    return
-
-                if job.process.returncode == 0 and job.output_path.exists() and job.output_path.stat().st_size > 0:
-                    job.status = JobStatus.COMPLETED
-                    job.finish_time = time.time()
-                    job.progress_percent = 100.0
-                    job.output_size_bytes = job.output_path.stat().st_size
-                    job.output_checksum = compute_file_sha256(job.output_path)
-                    total_time = round(job.finish_time - job.start_time, 2)
+                    # Build command
+                    cmd = FFmpegService.build_ffmpeg_command(
+                        input_path=job.input_path,
+                        output_path=job.output_path,
+                        resolution=job.resolution,
+                        bitrate=job.bitrate,
+                        preset=job.preset,
+                        use_nvenc=(enc != "libx264"),
+                        encoder=enc
+                    )
 
                     await self.broadcast(job.job_id, {
-                        "type": "state",
+                        "type": "log",
                         "job_id": job.job_id,
-                        "status": JobStatus.COMPLETED,
-                        "output_checksum": job.output_checksum,
-                        "output_size_bytes": job.output_size_bytes,
-                        "total_render_seconds": total_time,
-                        "message": "Rendering completed successfully."
+                        "level": "INFO",
+                        "message": f"FFmpeg command: {' '.join(cmd)}"
                     })
-                else:
+
+                    with open(job.log_path, "a" if attempt_idx > 0 else "w", encoding="utf-8") as log_file:
+                        if attempt_idx > 0:
+                            log_file.write(f"\n--- FALLBACK ATTEMPT (libx264) ---\n")
+                        log_file.write(f"FFmpeg command: {' '.join(cmd)}\n\n")
+
+                    job.process = await asyncio.create_subprocess_exec(
+                        *cmd,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE
+                    )
+
+                    # Read progress and stderr concurrently
+                    progress_task = asyncio.create_task(self._stream_progress(job))
+                    stderr_task = asyncio.create_task(self._stream_stderr(job))
+
+                    await asyncio.gather(progress_task, stderr_task)
+                    await job.process.wait()
+
+                    if job._cancelled:
+                        job.status = JobStatus.CANCELLED
+                        return
+
+                    if job.process.returncode == 0 and job.output_path.exists() and job.output_path.stat().st_size > 0:
+                        job.status = JobStatus.COMPLETED
+                        job.finish_time = time.time()
+                        job.progress_percent = 100.0
+                        job.output_size_bytes = job.output_path.stat().st_size
+                        job.output_checksum = compute_file_sha256(job.output_path)
+                        total_time = round(job.finish_time - job.start_time, 2)
+
+                        await self.broadcast(job.job_id, {
+                            "type": "state",
+                            "job_id": job.job_id,
+                            "status": JobStatus.COMPLETED,
+                            "output_checksum": job.output_checksum,
+                            "output_size_bytes": job.output_size_bytes,
+                            "total_render_seconds": total_time,
+                            "message": "Rendering completed successfully."
+                        })
+                        return
+
+                    # Process failed - extract meaningful error line from stderr log
+                    err_detail = ""
+                    if job.log_path.exists():
+                        try:
+                            with open(job.log_path, "r", encoding="utf-8", errors="replace") as lf:
+                                lines = [l.strip() for l in lf.readlines() if l.strip() and not l.startswith("FFmpeg command:")]
+                                err_candidates = [l for l in lines if any(w in l.lower() for w in ["error", "cannot", "failed", "invalid", "unknown"])]
+                                if err_candidates:
+                                    err_detail = err_candidates[-1]
+                                elif lines:
+                                    err_detail = lines[-1]
+                        except Exception:
+                            pass
+
+                    # If this was a hardware encoder attempt and fallback is available, proceed to next attempt
+                    if attempt_idx < len(encoder_attempts) - 1:
+                        logger.warning(f"Encoder '{enc}' failed on job {job.job_id} ({err_detail}). Initiating fallback retry.")
+                        await self.broadcast(job.job_id, {
+                            "type": "log",
+                            "job_id": job.job_id,
+                            "level": "WARNING",
+                            "message": f"Hardware encoder '{enc}' failed ({err_detail or 'non-zero exit code'}). Switching to CPU fallback..."
+                        })
+                        continue
+
+                    # Final failure
                     job.status = JobStatus.FAILED
+                    code_val = job.process.returncode
+                    code_display = str(code_val) if code_val < 0x80000000 else f"{code_val - 0x100000000}"
                     if not job.error_message:
-                        job.error_message = f"FFmpeg exited with non-zero code {job.process.returncode}."
+                        job.error_message = f"FFmpeg failed ({err_detail}) [exit code {code_display}]" if err_detail else f"FFmpeg exited with non-zero code {code_display}."
                     await self.broadcast(job.job_id, {
                         "type": "error",
                         "job_id": job.job_id,
                         "status": JobStatus.FAILED,
                         "error": job.error_message
                     })
+                    return
             except Exception as e:
                 logger.exception("Error executing FFmpeg subprocess")
                 job.status = JobStatus.FAILED

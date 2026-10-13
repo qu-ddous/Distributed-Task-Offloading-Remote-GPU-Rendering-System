@@ -394,18 +394,38 @@ class DashboardView(ctk.CTkScrollableFrame):
             if health_data:
                 ff = health_data.get("ffmpeg", {})
                 hw = health_data.get("hardware", {})
+                encoders = ff.get("supported_encoders", [])
                 nvenc = ff.get("nvenc_available", False)
+                has_hw = nvenc or any(e in ["h264_nvenc", "h264_qsv", "h264_amf", "h264_mf"] for e in encoders)
                 gpu_name = hw.get("gpu_name")
 
-                # Update Stat Card 2
-                if nvenc:
-                    self.lbl_gpu_val.configure(text="NVENC Ready", text_color=ACCENT_GREEN)
-                    self.lbl_gpu_sub.configure(text=gpu_name[:26] if gpu_name else "Dedicated NVIDIA Hardware Node")
-                    self.lbl_rd_worker.configure(text=f"Worker Station: {gpu_name[:22] if gpu_name else 'NVENC Ready'}", text_color=ACCENT_GREEN)
-                    self.lbl_rd_worker_sub.configure(text="NVIDIA NVENC Hardware Ready")
+                if "h264_nvenc" in encoders:
+                    hw_title = "NVENC Ready"
+                    hw_sub = "Dedicated NVIDIA Hardware Node"
+                elif "h264_qsv" in encoders:
+                    hw_title = "QuickSync Ready"
+                    hw_sub = "Intel QuickSync Video Hardware"
+                elif "h264_amf" in encoders:
+                    hw_title = "AMD AMF Ready"
+                    hw_sub = "AMD Radeon GPU Hardware"
+                elif "h264_mf" in encoders:
+                    hw_title = "MF GPU Ready"
+                    hw_sub = "Windows MediaFoundation Acceleration"
+                elif has_hw:
+                    hw_title = "GPU Ready"
+                    hw_sub = "Hardware Acceleration Engaged"
                 else:
-                    self.lbl_gpu_val.configure(text="NVENC Missing", text_color=ACCENT_ORANGE)
-                    self.lbl_gpu_sub.configure(text="CPU fallback mode available")
+                    hw_title = None
+
+                # Update Stat Card 2
+                if hw_title:
+                    self.lbl_gpu_val.configure(text=hw_title, text_color=ACCENT_GREEN)
+                    self.lbl_gpu_sub.configure(text=gpu_name[:26] if gpu_name else hw_sub)
+                    self.lbl_rd_worker.configure(text=f"Worker Station: {gpu_name[:22] if gpu_name else hw_title}", text_color=ACCENT_GREEN)
+                    self.lbl_rd_worker_sub.configure(text=f"Remote {hw_title} Hardware Active")
+                else:
+                    self.lbl_gpu_val.configure(text="CPU Mode", text_color=ACCENT_ORANGE)
+                    self.lbl_gpu_sub.configure(text="Multi-core CPU transcode mode")
                     self.lbl_rd_worker.configure(text="Worker Station: CPU Mode", text_color=ACCENT_ORANGE)
                     self.lbl_rd_worker_sub.configure(text="Multi-Core CPU Fallback Active")
 
@@ -427,10 +447,12 @@ class DashboardView(ctk.CTkScrollableFrame):
                 self.lbl_hw_ram_sub.configure(text=f"Memory Consumption: {ram_pct:.1f}%")
                 self.bar_hw_ram.set(min(1.0, max(0.02, ram_pct / 100.0)))
 
-                if nvenc and gpu_name:
+                if hw_title and gpu_name:
                     vram_mb = hw.get("gpu_vram_total_mb")
                     vram_txt = f" ({vram_mb // 1024} GB VRAM)" if vram_mb else ""
-                    self.lbl_hw_gpu_full.configure(text=f"GPU: {gpu_name}{vram_txt} [NVENC Ready]", text_color=ACCENT_GREEN)
+                    self.lbl_hw_gpu_full.configure(text=f"GPU: {gpu_name}{vram_txt} [{hw_title}]", text_color=ACCENT_GREEN)
+                elif gpu_name:
+                    self.lbl_hw_gpu_full.configure(text=f"GPU: {gpu_name} [CPU Multi-Core Mode Active]", text_color=TEXT_PRIMARY)
                 else:
                     self.lbl_hw_gpu_full.configure(text="GPU: None / Integrated [CPU Multi-Core Mode Active]", text_color=TEXT_PRIMARY)
 

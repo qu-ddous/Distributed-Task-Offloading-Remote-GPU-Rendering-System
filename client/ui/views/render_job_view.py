@@ -345,8 +345,8 @@ class RenderJobView(ctk.CTkScrollableFrame):
         self.opt_bitrate.set(self.app.config_data.get("default_bitrate", "5M"))
         self.opt_bitrate.grid(row=1, column=1, sticky="ew", padx=(10, 0), pady=(0, 14))
 
-        # NVENC Preset
-        ctk.CTkLabel(self.video_config_frame, text="NVENC Encoder Preset", font=ctk.CTkFont(size=12, weight="bold"), text_color=TEXT_SECONDARY).grid(row=2, column=0, sticky="w", pady=(0, 4))
+        # Encoder Preset
+        ctk.CTkLabel(self.video_config_frame, text="Encoder Preset (Hardware / CPU)", font=ctk.CTkFont(size=12, weight="bold"), text_color=TEXT_SECONDARY).grid(row=2, column=0, sticky="w", pady=(0, 4))
         self.opt_preset = ctk.CTkOptionMenu(
             self.video_config_frame,
             values=["p1 (Fastest)", "p2", "p3", "p4 (Medium)", "p5", "p6", "p7 (Slowest)"],
@@ -366,7 +366,7 @@ class RenderJobView(ctk.CTkScrollableFrame):
         # CPU Fallback Checkbox
         self.chk_cpu = ctk.CTkCheckBox(
             self.video_config_frame,
-            text="Allow CPU Fallback (libx264 if NVENC absent)",
+            text="Allow CPU Fallback (libx264 if GPU encoder fails)",
             font=ctk.CTkFont(size=12, weight="bold"),
             text_color=TEXT_SECONDARY,
             checkbox_height=22,

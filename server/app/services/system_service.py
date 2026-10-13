@@ -80,40 +80,34 @@ class SystemService:
             )
             if res.returncode == 0:
                 output = res.stdout
-                all_possible = [
+                hw_candidates = [
                     "h264_nvenc", "hevc_nvenc",
                     "h264_qsv", "hevc_qsv",
                     "h264_amf", "hevc_amf",
-                    "h264_mf",
-                    "libx264", "libx265"
+                    "h264_mf"
                 ]
-                for enc in all_possible:
-                    if enc in output:
-                        supported_encoders.append(enc)
+                sw_candidates = ["libx264", "libx265"]
 
-                # Test hardware encoders in order of preference (NVENC -> QSV -> AMF -> MF)
-                is_hardware_accel = False
-                for hw_enc in ["h264_nvenc", "h264_qsv", "h264_amf", "h264_mf"]:
-                    if hw_enc in supported_encoders:
+                verified_hw = []
+                for hw_enc in hw_candidates:
+                    if hw_enc in output:
                         try:
                             test_hw = subprocess.run(
-                                [ffmpeg_bin, "-f", "lavfi", "-i", "nullsrc=s=64x64:d=0.1", "-c:v", hw_enc, "-f", "null", "-"],
+                                [ffmpeg_bin, "-y", "-f", "lavfi", "-i", "nullsrc=s=64x64:d=0.1", "-c:v", hw_enc, "-f", "null", "-"],
                                 capture_output=True,
                                 text=True,
                                 timeout=3,
                                 creationflags=CREATE_NO_WINDOW
                             )
                             if test_hw.returncode == 0:
-                                is_hardware_accel = True
-                                if hw_enc == "h264_nvenc":
-                                    is_nvenc = True
-                                # Promote the working hardware encoder to primary position
-                                if hw_enc != supported_encoders[0]:
-                                    supported_encoders.remove(hw_enc)
-                                    supported_encoders.insert(0, hw_enc)
-                                break
+                                verified_hw.append(hw_enc)
                         except Exception:
                             pass
+
+                verified_sw = [enc for enc in sw_candidates if enc in output]
+                supported_encoders = verified_hw + verified_sw
+                is_hardware_accel = len(verified_hw) > 0
+                is_nvenc = ("h264_nvenc" in verified_hw) or ("hevc_nvenc" in verified_hw)
         except Exception:
             cls._cached_ffmpeg_caps = (True, version_str, False, [])
             return cls._cached_ffmpeg_caps

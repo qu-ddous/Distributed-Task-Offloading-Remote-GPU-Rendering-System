@@ -192,3 +192,23 @@ def test_multivendor_ffmpeg_command_construction():
         encoder="h264_amf"
     )
     assert "h264_amf" in cmd_amf
+
+    # 3. Windows MediaFoundation
+    cmd_mf = FFmpegService.build_ffmpeg_command(
+        input_path=in_p,
+        output_path=out_p,
+        encoder="h264_mf"
+    )
+    assert "h264_mf" in cmd_mf
+
+def test_ffmpeg_capabilities_validation():
+    from server.app.services.system_service import SystemService
+    avail, ver, is_hw, encoders = SystemService.check_ffmpeg_capabilities(force_refresh=True)
+    if avail:
+        assert isinstance(encoders, list)
+        assert len(encoders) > 0
+        # Verified encoders must include libx264
+        assert "libx264" in encoders
+        # If NVENC is not supported on host, it MUST NOT be in supported_encoders
+        if not is_hw or "h264_nvenc" not in encoders:
+            assert "h264_nvenc" not in encoders

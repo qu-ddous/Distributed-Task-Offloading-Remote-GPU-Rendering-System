@@ -229,13 +229,25 @@ class App(ctk.CTk):
         self.is_connected = True
         self.health_data = health_data
         ff = health_data.get("ffmpeg", {})
-        self.gpu_ready = ff.get("nvenc_available", False)
+        encoders = ff.get("supported_encoders", [])
+        has_hw = ff.get("nvenc_available", False) or any(enc in ["h264_nvenc", "h264_qsv", "h264_amf", "h264_mf"] for enc in encoders)
+        self.gpu_ready = has_hw
         proto = health_data.get("protocol_version", "v1.0.0")
 
         self.topbar.set_status(True, latency, f"{host}:{port}")
         self.views["dashboard"].update_status(True, latency, health_data)
         if self.gpu_ready:
-            self.sidebar.set_engine_status(True, "NVENC Ready")
+            if "h264_nvenc" in encoders:
+                engine_tag = "NVENC Ready"
+            elif "h264_qsv" in encoders:
+                engine_tag = "QuickSync Ready"
+            elif "h264_amf" in encoders:
+                engine_tag = "AMD AMF Ready"
+            elif "h264_mf" in encoders:
+                engine_tag = "MF GPU Ready"
+            else:
+                engine_tag = "GPU Ready"
+            self.sidebar.set_engine_status(True, engine_tag)
         else:
             self.sidebar.set_engine_status(False, "CPU Fallback")
 

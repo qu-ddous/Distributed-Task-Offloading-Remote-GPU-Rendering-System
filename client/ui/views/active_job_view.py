@@ -106,7 +106,7 @@ class ActiveJobView(ctk.CTkFrame):
 
         self.lbl_result_details = ctk.CTkLabel(
             r_box,
-            text="Submit a video from 'New Render Job' to stream real-time NVENC logs, frames, and performance.",
+            text="Submit a video from 'New Render Job' to stream real-time remote logs, frames, and performance.",
             font=ctk.CTkFont(size=12),
             text_color=TEXT_MUTED,
             justify="left",
@@ -180,7 +180,7 @@ class ActiveJobView(ctk.CTkFrame):
         top = ctk.CTkFrame(card, fg_color="transparent")
         top.pack(fill="x", padx=22, pady=(14, 6))
 
-        ctk.CTkLabel(top, text="FFmpeg NVENC Real-Time Console Stream", font=ctk.CTkFont(size=13, weight="bold"), text_color=TEXT_PRIMARY).pack(side="left")
+        ctk.CTkLabel(top, text="FFmpeg Remote Real-Time Console Stream", font=ctk.CTkFont(size=13, weight="bold"), text_color=TEXT_PRIMARY).pack(side="left")
 
         btn_clear = ctk.CTkButton(
             top,
@@ -277,7 +277,7 @@ class ActiveJobView(ctk.CTkFrame):
         # Phase 2: Live Remote Compute / Rendering
         is_script = input_file.suffix.lower() in [".py", ".pyw", ".bat", ".cmd", ".ps1", ".zip"]
         stage_desc = "Stage: Remote Universal / Compute Execution (100% Server Hardware)..." if is_script else "Stage: Remote GPU Rendering..."
-        status_desc = "Job Status: Remote Compute (100% Server)" if is_script else "Job Status: Remote GPU Encoding (NVENC)"
+        status_desc = "Job Status: Remote Compute (100% Server)" if is_script else "Job Status: Remote Video Encoding"
         self.lbl_stage.configure(text=stage_desc)
         icon_sym = "🌟" if input_file.suffix.lower() == ".zip" else ("🧠" if input_file.suffix.lower() in [".py", ".pyw"] else ("⚡" if is_script else "🎬"))
         self.lbl_result_icon.configure(text=icon_sym, fg_color="#EDE9FE")
