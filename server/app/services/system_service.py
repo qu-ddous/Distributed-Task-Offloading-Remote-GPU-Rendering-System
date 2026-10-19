@@ -351,34 +351,41 @@ class SystemService:
     @staticmethod
     def get_all_lan_adapters() -> List[Dict[str, Any]]:
         """
-        Discovers all network adapters, tagging interface name, IP, active UP state, and friendly type.
-        Supports both Wi-Fi, Ethernet, and direct LAN cable (APIPA 169.254.x.x) connections.
+        Discovers physical Ethernet (wired Cat6/LAN) adapters only.
+        Completely excludes Wi-Fi, wireless, virtual, cellular, and loopback adapters.
         """
         adapters = []
         try:
             stats = psutil.net_if_stats()
             for iface, addrs in psutil.net_if_addrs().items():
+                iface_lower = iface.lower()
+                # Exclude any Wi-Fi, wireless, virtual, cellular, or Wi-Fi Direct interfaces
+                is_wifi_or_virtual = any(v in iface_lower for v in [
+                    "wi-fi", "wifi", "wireless", "wlan", "802.11", "airdrop",
+                    "wi-fi direct", "wifi direct", "local area connection*",
+                    "virtual", "vethernet", "vmware", "loopback", "wsl", "hyper-v",
+                    "pseudo", "tap", "tun", "zerotier", "tailscale", "bluetooth",
+                    "cellular", "mobile", "wwan", "dial-up", "remote"
+                ])
+                if is_wifi_or_virtual:
+                    continue
+
                 st = stats.get(iface)
                 is_up = st.isup if st else False
-                is_virtual = any(v in iface.lower() for v in ["virtual", "vethernet", "vmware", "loopback", "wsl", "hyper-v", "pseudo", "tap", "tun", "zerotier", "tailscale", "bluetooth"])
+
                 for a in addrs:
                     if a.family == socket.AF_INET:
                         ip = a.address
                         if ip.startswith("127."):
                             continue
-                        if any(w in iface.lower() for w in ["wi-fi", "wireless", "wlan", "802.11"]):
-                            ad_type = "Wi-Fi"
-                        elif any(e in iface.lower() for e in ["ethernet", "lan", "local area", "gigabit", "controller", "pcie", "eth", "realtek", "intel"]):
-                            ad_type = "Ethernet (Cat6 / LAN)"
-                        else:
-                            ad_type = "Network"
+                        ad_type = "Ethernet (Cat6 / Wired LAN)"
                         if ip.startswith("169.254."):
                             ad_type += " (Direct Cable APIPA)"
                         adapters.append({
                             "interface": iface,
                             "ip": ip,
                             "is_up": is_up,
-                            "is_virtual": is_virtual,
+                            "is_virtual": False,
                             "type": ad_type
                         })
         except Exception:
@@ -388,40 +395,66 @@ class SystemService:
     @classmethod
     def get_primary_ip(cls) -> str:
         """
-        Determines the system's actual local IPv4 LAN address (e.g. 192.168.x.x, 10.x.x.x).
-        Uses UDP routing probe to determine active outbound IP first, then falls back to active adapters.
+        Determines the system's active Ethernet (wired Cat6/LAN) IPv4 address.
+        Completely ignores Wi-Fi and strictly selects the physical Ethernet connection.
         """
-        # 1. Standard UDP routing probe (identifies the actual active network interface)
-        try:
-            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            s.connect(("8.8.8.8", 80))
-            ip = s.getsockname()[0]
-            s.close()
-            if ip and not ip.startswith("127.") and not ip.startswith("169.254."):
-                return ip
-        except Exception:
-            pass
-
         adapters = cls.get_all_lan_adapters()
 
-        # 2. Active physical UP adapter with private LAN IP
+        # 1. Active physical Ethernet adapter that is UP
         for ad in adapters:
-            if ad.get("is_up") and not ad.get("is_virtual"):
-                ip = ad["ip"]
-                if ip.startswith("192.168.") or ip.startswith("10.") or (ip.startswith("172.") and not ip.startswith("172.17.")):
-                    return ip
-
-        # 3. Direct LAN cable (APIPA 169.254.x.x) on active physical interface
-        for ad in adapters:
-            if ad.get("is_up") and not ad.get("is_virtual") and ad["ip"].startswith("169.254."):
+            if ad.get("is_up") and not ad["ip"].startswith("127."):
                 return ad["ip"]
 
-        # 4. Any non-loopback IP
+        # 2. Any detected Ethernet adapter with valid IPv4
         for ad in adapters:
             if not ad["ip"].startswith("127."):
                 return ad["ip"]
 
+        # 3. Fallback
         return "127.0.0.1"
+
+    @classmethod
+    def ensure_firewall_rule(cls, port: int = 8000) -> bool:
+        """
+        Ensures an inbound Windows Defender Firewall rule exists for the specified port (TCP).
+        If missing, attempts to create it automatically.
+        Uses ShellExecute 'runas' if administrator elevation is required.
+        Completely silent and creates no flashing console window.
+        """
+        if os.name != "nt":
+            return True
+
+        rule_name = f"GPU Render Studio Server (Port {port})"
+        try:
+            # 1. Check if rule already exists (no elevation required)
+            check = subprocess.run(
+                ["netsh", "advfirewall", "firewall", "show", "rule", f"name={rule_name}"],
+                capture_output=True,
+                text=True,
+                creationflags=CREATE_NO_WINDOW
+            )
+            if check.returncode == 0 and "No rules match" not in check.stdout:
+                return True
+
+            # 2. Try adding rule directly (succeeds if running as Administrator)
+            add_res = subprocess.run(
+                ["netsh", "advfirewall", "firewall", "add", "rule",
+                 f"name={rule_name}", "dir=in", "action=allow", "protocol=TCP",
+                 f"localport={port}", "profile=any"],
+                capture_output=True,
+                text=True,
+                creationflags=CREATE_NO_WINDOW
+            )
+            if add_res.returncode == 0:
+                return True
+
+            # 3. Elevate via ShellExecuteW 'runas' to add rule silently
+            import ctypes
+            args = f'advfirewall firewall add rule name="{rule_name}" dir=in action=allow protocol=TCP localport={port} profile=any'
+            ret = ctypes.windll.shell32.ShellExecuteW(None, "runas", "netsh", args, None, 0)
+            return ret > 32
+        except Exception:
+            return False
 
     @classmethod
     def get_all_lan_ips(cls) -> List[str]:

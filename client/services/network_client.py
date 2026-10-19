@@ -85,14 +85,27 @@ class NetworkClient:
                     "data": health_data
                 }
         except httpx.ConnectError:
+            if self.host.startswith("169.254."):
+                detail = (
+                    f"Could not connect to {self.base_url}.\n\n"
+                    f"[Direct Cable APIPA Subnet Mismatch]\n"
+                    f"Worker is on link-local IP '{self.host}'. "
+                    f"Please verify that the Ethernet cable is plugged directly between both PCs "
+                    f"so both systems receive an auto-assigned 169.254.x.x address."
+                )
+            else:
+                detail = (
+                    f"Could not connect to {self.base_url}.\n\n"
+                    f"Verify that the GPU Worker Server is running on '{self.host}' and port {self.port} is open in Windows Firewall."
+                )
             return {
                 "success": False,
-                "error": f"Could not connect to {self.base_url}. Verify worker IP is correct and server is running."
+                "error": detail
             }
         except httpx.TimeoutException:
             return {
                 "success": False,
-                "error": f"Connection to {self.base_url} timed out ({int(timeout)}s limit)."
+                "error": f"Connection to {self.base_url} timed out ({int(timeout)}s limit). Host may be busy or unreachable."
             }
         except Exception as e:
             return {

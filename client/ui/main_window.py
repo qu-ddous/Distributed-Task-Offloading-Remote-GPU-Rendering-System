@@ -176,12 +176,13 @@ class App(ctk.CTk):
     def _start_heartbeat_monitor(self):
         import time
         def heartbeat_worker():
+            consecutive_failures = 0
             while self._heartbeat_running:
-                time.sleep(2.0)
+                time.sleep(2.5)
                 if not self._heartbeat_running:
                     break
-                # Only send heartbeat if client is ALREADY connected and not manually disconnected!
-                if not self.is_connected or self._user_manually_disconnected:
+                # Only pause heartbeats if user explicitly clicked "Disconnect"
+                if self._user_manually_disconnected:
                     continue
                 try:
                     host = self.config_data.get("server_host", "127.0.0.1")
@@ -189,8 +190,17 @@ class App(ctk.CTk):
                     token = self.config_data.get("api_token", "")
 
                     net = NetworkClient(host, port, token)
-                    res = net.ping_and_health(timeout=1.5)
-                    self.after(0, lambda r=res, h=host, p=port, t=token: self._process_heartbeat_result(r, h, p, t))
+                    # 4.0s timeout ensures heavy file downloading or SHA-256 hashing doesn't cause false dropouts
+                    res = net.ping_and_health(timeout=4.0)
+
+                    if res.get("success"):
+                        consecutive_failures = 0
+                        self.after(0, lambda r=res, h=host, p=port, t=token: self._process_heartbeat_result(r, h, p, t))
+                    else:
+                        consecutive_failures += 1
+                        # Only mark offline if 3 consecutive pings fail (7.5s - 12s buffer)
+                        if consecutive_failures >= 3:
+                            self.after(0, lambda r=res, h=host, p=port, t=token: self._process_heartbeat_result(r, h, p, t))
                 except Exception:
                     pass
 
@@ -206,6 +216,7 @@ class App(ctk.CTk):
                 data = res.get("data", {})
                 self.last_latency = lat
                 if not self.is_connected:
+                    # Automatically reconnect if connection was temporarily interrupted!
                     self.on_connection_success(host, port, token, lat, data)
                 else:
                     self.health_data = data
@@ -213,7 +224,7 @@ class App(ctk.CTk):
                     self.views["dashboard"].update_status(True, lat, data)
             else:
                 if self.is_connected:
-                    # Server was closed or stopped - immediately transition client to offline mode
+                    # 3 consecutive failures confirmed server is unreachable
                     self.on_connection_failure(res.get("error", "Server Disconnected"))
         except Exception:
             pass

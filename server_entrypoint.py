@@ -43,6 +43,11 @@ def main():
     server_thread = threading.Thread(target=server_instance.run, daemon=True)
     server_thread.start()
 
+    # Automatically ensure Windows Firewall rule exists for server port (TCP 8000)
+    from server.app.services.system_service import SystemService
+    firewall_thread = threading.Thread(target=SystemService.ensure_firewall_rule, args=(settings.PORT,), daemon=True)
+    firewall_thread.start()
+
     # Start Modern CustomTkinter Worker GUI
     gui_app = ServerApp(uvicorn_server_instance=server_instance)
     gui_app.mainloop()
