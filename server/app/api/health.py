@@ -1,4 +1,5 @@
 import time
+import asyncio
 from datetime import datetime, timezone
 from fastapi import APIRouter, Header, HTTPException, status
 from shared.schemas import HealthResponse, LatencyPingResponse, FFmpegInfo, HardwareInfo, ServerLimits
@@ -16,8 +17,8 @@ async def health_check(x_api_token: str = Header(None)):
             detail="Invalid or missing X-API-Token header."
         )
 
-    is_ff_avail, ff_ver, is_nvenc, encoders = SystemService.check_ffmpeg_capabilities()
-    hw_data = SystemService.get_hardware_telemetry(str(settings.storage_path))
+    is_ff_avail, ff_ver, is_nvenc, encoders = await asyncio.to_thread(SystemService.check_ffmpeg_capabilities)
+    hw_data = await asyncio.to_thread(SystemService.get_hardware_telemetry, str(settings.storage_path))
     active_count = sum(1 for j in job_manager.jobs.values() if j.status.value in ["queued", "rendering"])
 
     return HealthResponse(

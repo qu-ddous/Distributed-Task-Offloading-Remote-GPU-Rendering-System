@@ -50,3 +50,17 @@ def test_network_client_headers():
 
     client_with_token = NetworkClient(host="127.0.0.1", port=8000, api_token="secret-123")
     assert client_with_token.get_headers() == {"X-API-Token": "secret-123"}
+
+def test_network_client_quick_ping_mock():
+    client = NetworkClient(host="127.0.0.1", port=8000)
+    with patch("httpx.Client") as mock_client_cls:
+        mock_instance = MagicMock()
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_instance.get.return_value = mock_resp
+        mock_client_cls.return_value.__enter__.return_value = mock_instance
+
+        res = client.quick_ping()
+        assert res["success"] is True
+        assert "latency_ms" in res
+

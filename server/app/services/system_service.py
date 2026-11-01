@@ -478,7 +478,7 @@ class SystemService:
         now_t = time.time()
         if cls._cached_gpu_telemetry:
             cached_t, cached_data = cls._cached_gpu_telemetry
-            if (now_t - cached_t) < 0.8:
+            if (now_t - cached_t) < 2.5:
                 return cached_data
 
         # 1. Try nvidia-smi if available (for live telemetry: load, vram used, temp, clock)

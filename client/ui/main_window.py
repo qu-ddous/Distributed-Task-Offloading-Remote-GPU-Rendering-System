@@ -177,8 +177,9 @@ class App(ctk.CTk):
         import time
         def heartbeat_worker():
             consecutive_failures = 0
+            tick_count = 0
             while self._heartbeat_running:
-                time.sleep(2.5)
+                time.sleep(3.0)
                 if not self._heartbeat_running:
                     break
                 # Only pause heartbeats if user explicitly clicked "Disconnect"
@@ -190,41 +191,57 @@ class App(ctk.CTk):
                     token = self.config_data.get("api_token", "")
 
                     net = NetworkClient(host, port, token)
-                    # 4.0s timeout ensures heavy file downloading or SHA-256 hashing doesn't cause false dropouts
-                    res = net.ping_and_health(timeout=4.0)
+                    tick_count += 1
+
+                    # Check if ActiveJobView is actively executing/downloading
+                    active_view = self.views.get("active_job")
+                    is_job_active = bool(active_view and getattr(active_view, "active_job_id", None))
+
+                    # Generous timeout & buffer during active jobs to tolerate network streaming / GPU encoding
+                    ping_timeout = 8.0 if is_job_active else 5.0
+                    max_allowed_failures = 6 if is_job_active else 4
+
+                    # Use fast lightweight ping on routine ticks; full health check every 5th tick (~15s) or on initial reconnect
+                    need_full_health = (tick_count % 5 == 0) or (not self.is_connected)
+
+                    if need_full_health:
+                        res = net.ping_and_health(timeout=ping_timeout)
+                    else:
+                        res = net.quick_ping(timeout=ping_timeout)
 
                     if res.get("success"):
                         consecutive_failures = 0
-                        self.after(0, lambda r=res, h=host, p=port, t=token: self._process_heartbeat_result(r, h, p, t))
+                        self.after(0, lambda r=res, h=host, p=port, t=token, full=need_full_health: self._process_heartbeat_result(r, h, p, t, full))
                     else:
                         consecutive_failures += 1
-                        # Only mark offline if 3 consecutive pings fail (7.5s - 12s buffer)
-                        if consecutive_failures >= 3:
-                            self.after(0, lambda r=res, h=host, p=port, t=token: self._process_heartbeat_result(r, h, p, t))
+                        # Only mark offline after verified consecutive failures
+                        if consecutive_failures >= max_allowed_failures:
+                            self.after(0, lambda r=res, h=host, p=port, t=token: self._process_heartbeat_result(r, h, p, t, False))
                 except Exception:
                     pass
 
         threading.Thread(target=heartbeat_worker, daemon=True).start()
 
-    def _process_heartbeat_result(self, res: dict, host: str, port: int, token: str):
+    def _process_heartbeat_result(self, res: dict, host: str, port: int, token: str, is_full_health: bool = False):
         try:
             if not self.winfo_exists() or not self._heartbeat_running or self._user_manually_disconnected:
                 return
 
             if res.get("success"):
                 lat = res.get("latency_ms", 0)
-                data = res.get("data", {})
                 self.last_latency = lat
                 if not self.is_connected:
                     # Automatically reconnect if connection was temporarily interrupted!
+                    data = res.get("data", {})
                     self.on_connection_success(host, port, token, lat, data)
                 else:
-                    self.health_data = data
                     self.topbar.set_status(True, lat, f"{host}:{port}")
-                    self.views["dashboard"].update_status(True, lat, data)
+                    if is_full_health and "data" in res:
+                        self.health_data = res["data"]
+                        self.views["dashboard"].update_status(True, lat, self.health_data)
             else:
                 if self.is_connected:
-                    # 3 consecutive failures confirmed server is unreachable
+                    # Verified consecutive failures confirmed server is unreachable
                     self.on_connection_failure(res.get("error", "Server Disconnected"))
         except Exception:
             pass

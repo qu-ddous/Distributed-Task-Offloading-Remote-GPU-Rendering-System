@@ -40,7 +40,32 @@ class NetworkClient:
             headers["X-API-Token"] = self.api_token
         return headers
 
-    def ping_and_health(self, timeout: float = 5.0) -> Dict[str, Any]:
+    def quick_ping(self, timeout: float = 4.0) -> Dict[str, Any]:
+        """
+        Fast, lightweight latency check (<1ms server cost) without heavy telemetry.
+        """
+        start_time = time.time()
+        try:
+            with httpx.Client(timeout=timeout) as client:
+                ping_resp = client.get(f"{self.base_url}/api/v1/ping")
+                latency_ms = round((time.time() - start_time) * 1000, 1)
+                if ping_resp.status_code == 200:
+                    return {
+                        "success": True,
+                        "latency_ms": latency_ms
+                    }
+                return {
+                    "success": False,
+                    "error": f"Server ping failed with status code {ping_resp.status_code}."
+                }
+        except httpx.ConnectError:
+            return {"success": False, "error": f"Could not connect to {self.base_url}."}
+        except httpx.TimeoutException:
+            return {"success": False, "error": f"Ping to {self.base_url} timed out."}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def ping_and_health(self, timeout: float = 8.0) -> Dict[str, Any]:
         """
         Synchronous ping & health check executed from a background thread.
         Returns dict with status, latency_ms, health_info or error.
@@ -280,7 +305,10 @@ class NetworkClient:
                     except asyncio.TimeoutError:
                         continue
         except Exception as e:
-            on_message({
-                "type": "error",
-                "message": f"WebSocket connection closed or unavailable: {str(e)}"
-            })
+            if not stop_event.is_set():
+                err_text = f"WebSocket connection closed or unavailable: {str(e)}"
+                on_message({
+                    "type": "error",
+                    "error": err_text,
+                    "message": err_text
+                })

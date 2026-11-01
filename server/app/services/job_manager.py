@@ -306,7 +306,7 @@ class JobManager:
                         job.finish_time = time.time()
                         job.progress_percent = 100.0
                         job.output_size_bytes = job.output_path.stat().st_size
-                        job.output_checksum = compute_file_sha256(job.output_path)
+                        job.output_checksum = await asyncio.to_thread(compute_file_sha256, job.output_path)
                         total_time = round(job.finish_time - job.start_time, 2)
 
                         await self.broadcast(job.job_id, {
@@ -613,7 +613,7 @@ class JobManager:
                 job.finish_time = time.time()
                 job.progress_percent = 100.0
                 job.output_size_bytes = job.output_path.stat().st_size
-                job.output_checksum = compute_file_sha256(job.output_path)
+                job.output_checksum = await asyncio.to_thread(compute_file_sha256, job.output_path)
                 total_time = round(job.finish_time - job.start_time, 2)
 
                 await self.broadcast(job.job_id, {

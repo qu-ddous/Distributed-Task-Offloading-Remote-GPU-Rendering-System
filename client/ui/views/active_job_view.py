@@ -411,6 +411,7 @@ class ActiveJobView(ctk.CTkFrame):
         self.lbl_stage.configure(text=f"Stage: Downloading ({rec/(1024*1024):.1f}/{total/(1024*1024):.1f} MB)")
 
     def _on_failure(self, err_msg: str):
+        self.active_job_id = None
         self.btn_cancel.configure(state="disabled")
         self.progress_bar.set(0.0)
         self.lbl_stage.configure(text="Stage: Failed")
@@ -421,6 +422,7 @@ class ActiveJobView(ctk.CTkFrame):
         messagebox.showerror("Job Execution Failed", err_msg)
 
     def _on_success(self, target_file: Path, upload_sec: float, render_sec: float, download_sec: float, total_sec: float, checksum: str):
+        self.active_job_id = None
         self.btn_cancel.configure(state="disabled")
         self.progress_bar.set(1.0)
         self.lbl_pct.configure(text="100.0%")
