@@ -14,6 +14,7 @@ class DashboardView(ctk.CTkScrollableFrame):
         self._build_top_banner()
         self._build_hero_section()
         self._build_stats_grid()
+        self._build_watch_folder_card()
         self._build_architecture_and_readiness_cards()
         self._build_remote_hardware_card()
 
@@ -189,6 +190,123 @@ class DashboardView(ctk.CTkScrollableFrame):
 
         self.lbl_latency_sub = ctk.CTkLabel(n_content, text="Gigabit / Wi-Fi LAN active", font=ctk.CTkFont(size=11), text_color=TEXT_DIM)
         self.lbl_latency_sub.pack(anchor="w", pady=(4, 0))
+
+    def _build_watch_folder_card(self):
+        self.card_watch = ctk.CTkFrame(self, fg_color=BG_CARD, corner_radius=16, border_width=1, border_color=BORDER_COLOR)
+        self.card_watch.pack(fill="x", padx=10, pady=(0, 16))
+
+        box = ctk.CTkFrame(self.card_watch, fg_color="transparent")
+        box.pack(fill="x", padx=20, pady=16)
+        box.grid_columnconfigure(1, weight=1)
+
+        # Left Icon
+        ic = ctk.CTkLabel(box, text="⚡", font=ctk.CTkFont(size=18), fg_color="#D1FAE5", corner_radius=10, width=42, height=42)
+        ic.grid(row=0, column=0, rowspan=2, padx=(0, 14), sticky="n")
+
+        # Title & Badge row
+        title_row = ctk.CTkFrame(box, fg_color="transparent")
+        title_row.grid(row=0, column=1, sticky="ew")
+
+        ctk.CTkLabel(
+            title_row,
+            text="3rd-Party Auto-Offload Watcher (CapCut / Premiere / DaVinci)",
+            font=ctk.CTkFont(size=14, weight="bold"),
+            text_color=TEXT_PRIMARY
+        ).pack(side="left")
+
+        self.lbl_dash_watch_badge = ctk.CTkLabel(
+            title_row,
+            text="● Watcher Inactive",
+            font=ctk.CTkFont(size=11, weight="bold"),
+            text_color=TEXT_MUTED,
+            fg_color="#F1F5F9",
+            corner_radius=6,
+            padx=10,
+            pady=3
+        )
+        self.lbl_dash_watch_badge.pack(side="right")
+
+        # Path info & description
+        info_frame = ctk.CTkFrame(box, fg_color="transparent")
+        info_frame.grid(row=1, column=1, sticky="ew", pady=(4, 0))
+
+        self.lbl_dash_watch_path = ctk.CTkLabel(
+            info_frame,
+            text="Watching: Not configured",
+            font=ctk.CTkFont(size=11, weight="bold"),
+            text_color=TEXT_SECONDARY
+        )
+        self.lbl_dash_watch_path.pack(anchor="w")
+
+        ctk.CTkLabel(
+            info_frame,
+            text="CapCut ya kisi bhi editor se jab video is folder mein Export hogi, ye studio automatically usse GPU server par transcode karega aur progress dikhayega.",
+            font=ctk.CTkFont(size=11),
+            text_color=TEXT_MUTED,
+            wraplength=640,
+            justify="left"
+        ).pack(anchor="w", pady=(2, 8))
+
+        # Action buttons
+        btn_row = ctk.CTkFrame(info_frame, fg_color="transparent")
+        btn_row.pack(anchor="w")
+
+        btn_open = ctk.CTkButton(
+            btn_row,
+            text="📂  Open Watch Folder",
+            command=self._on_open_dash_watch_folder,
+            fg_color="#F1F5F9",
+            hover_color="#E2E8F0",
+            text_color=TEXT_PRIMARY,
+            corner_radius=8,
+            height=30,
+            font=ctk.CTkFont(size=11, weight="bold")
+        )
+        btn_open.pack(side="left", padx=(0, 8))
+
+        btn_cfg = ctk.CTkButton(
+            btn_row,
+            text="⚙️  Configure Watch Folder",
+            command=lambda: self.app.navigate_to("settings"),
+            fg_color="#F1F5F9",
+            hover_color="#E2E8F0",
+            text_color=TEXT_PRIMARY,
+            corner_radius=8,
+            height=30,
+            font=ctk.CTkFont(size=11, weight="bold")
+        )
+        btn_cfg.pack(side="left")
+
+    def _on_open_dash_watch_folder(self):
+        p_str = self.app.config_data.get("watch_folder_path")
+        if p_str:
+            p = Path(p_str)
+            p.mkdir(parents=True, exist_ok=True)
+            import os
+            try:
+                os.startfile(str(p.resolve()))
+            except Exception:
+                import subprocess
+                subprocess.Popen(["explorer", str(p.resolve())])
+
+    def refresh_watch_folder_ui(self):
+        is_active = getattr(self.app, "watch_service", None) and self.app.watch_service.is_active()
+        p_str = self.app.config_data.get("watch_folder_path", "Not configured")
+        if hasattr(self, "lbl_dash_watch_badge"):
+            if is_active:
+                self.lbl_dash_watch_badge.configure(
+                    text="● Auto-Offload Active",
+                    text_color=ACCENT_GREEN,
+                    fg_color="#D1FAE5"
+                )
+            else:
+                self.lbl_dash_watch_badge.configure(
+                    text="● Watcher Inactive",
+                    text_color=TEXT_MUTED,
+                    fg_color="#F1F5F9"
+                )
+        if hasattr(self, "lbl_dash_watch_path"):
+            self.lbl_dash_watch_path.configure(text=f"Watching: {p_str}")
 
     def _build_architecture_and_readiness_cards(self):
         row = ctk.CTkFrame(self, fg_color="transparent")
@@ -369,6 +487,7 @@ class DashboardView(ctk.CTkScrollableFrame):
             getattr(self.app, "last_latency", 0.0),
             self.app.health_data
         )
+        self.refresh_watch_folder_ui()
 
     def update_status(self, is_online: bool, latency: float = 0, health_data: Optional[dict] = None):
         if is_online:
@@ -492,3 +611,4 @@ class DashboardView(ctk.CTkScrollableFrame):
             self.bar_hw_ram.set(0.0)
             self.lbl_hw_gpu_full.configure(text="GPU: Awaiting Hardware Query", text_color=TEXT_PRIMARY)
             self.lbl_hw_disk.configure(text="Render Cache Storage: -- GB Free")
+        self.refresh_watch_folder_ui()

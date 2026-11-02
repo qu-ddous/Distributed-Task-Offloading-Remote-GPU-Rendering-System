@@ -20,6 +20,7 @@ class SettingsView(ctk.CTkScrollableFrame):
         curr_host = self.app.config_data.get("server_host", "127.0.0.1")
         curr_port = self.app.config_data.get("server_port", 8000)
         self._update_badge(self.app.is_connected, curr_host, curr_port)
+        self.refresh_watch_folder_status()
 
     def _build_connection_card(self):
         card = ctk.CTkFrame(self, fg_color=BG_CARD, corner_radius=18, border_width=1, border_color=BORDER_COLOR)
@@ -194,16 +195,38 @@ class SettingsView(ctk.CTkScrollableFrame):
 
         t_box = ctk.CTkFrame(h_row, fg_color="transparent")
         t_box.pack(side="left", fill="both")
-        ctk.CTkLabel(t_box, text="3rd-Party Editor Watch Folder (Auto-Offload)", font=ctk.CTkFont(size=16, weight="bold"), text_color=TEXT_PRIMARY).pack(anchor="w")
-        ctk.CTkLabel(t_box, text="Export directly from Premiere Pro, DaVinci Resolve, Blender, or HandBrake into this folder.", font=ctk.CTkFont(size=12), text_color=TEXT_MUTED).pack(anchor="w")
+        ctk.CTkLabel(t_box, text="3rd-Party Video Editor Watch Folder (Auto-Offload)", font=ctk.CTkFont(size=16, weight="bold"), text_color=TEXT_PRIMARY).pack(anchor="w")
+        ctk.CTkLabel(t_box, text="Export directly from CapCut, Adobe Premiere, DaVinci Resolve, or Blender into this folder.", font=ctk.CTkFont(size=12), text_color=TEXT_MUTED).pack(anchor="w")
 
-        self.chk_watch_enabled = ctk.CTkCheckBox(card, text="Enable 3rd-Party Watch Folder Automation", font=ctk.CTkFont(size=12, weight="bold"), text_color=TEXT_PRIMARY, checkbox_height=22, checkbox_width=22, corner_radius=6, fg_color=ACCENT_BLUE)
+        is_active = getattr(self.app, "watch_service", None) and self.app.watch_service.is_active()
+        self.lbl_watch_status = ctk.CTkLabel(
+            h_row,
+            text="● Watcher Active" if is_active else "● Watcher Inactive",
+            font=ctk.CTkFont(size=11, weight="bold"),
+            text_color=ACCENT_GREEN if is_active else TEXT_MUTED,
+            fg_color="#D1FAE5" if is_active else "#F1F5F9",
+            corner_radius=8,
+            padx=10,
+            pady=4
+        )
+        self.lbl_watch_status.pack(side="right")
+
+        self.chk_watch_enabled = ctk.CTkCheckBox(
+            card,
+            text="Enable 3rd-Party Watch Folder Automation (Auto-Render Exports)",
+            font=ctk.CTkFont(size=12, weight="bold"),
+            text_color=TEXT_PRIMARY,
+            checkbox_height=22,
+            checkbox_width=22,
+            corner_radius=6,
+            fg_color=ACCENT_BLUE
+        )
         if self.app.config_data.get("watch_folder_enabled", False):
             self.chk_watch_enabled.select()
         self.chk_watch_enabled.pack(anchor="w", padx=22, pady=(14, 10))
 
         dir_row = ctk.CTkFrame(card, fg_color="transparent")
-        dir_row.pack(fill="x", padx=22, pady=(0, 16))
+        dir_row.pack(fill="x", padx=22, pady=(0, 12))
 
         self.entry_watch_dir = ctk.CTkEntry(dir_row, fg_color=BG_INPUT, border_color=BORDER_COLOR, corner_radius=10, height=38, text_color=TEXT_PRIMARY)
         default_watch = str(Path.home() / "Videos" / "RenderWatch_In")
@@ -224,11 +247,101 @@ class SettingsView(ctk.CTkScrollableFrame):
         )
         btn_browse_watch.pack(side="right")
 
+        # Instruction card
+        tip_frame = ctk.CTkFrame(card, fg_color="#F8FAFC", corner_radius=10, border_width=1, border_color="#E2E8F0")
+        tip_frame.pack(fill="x", padx=22, pady=(0, 14))
+        ctk.CTkLabel(
+            tip_frame,
+            text="💡 CapCut Guide: CapCut mein Export karte waqt 'Export to' folder ko yahi Watch Folder set karein.\nJese hi CapCut video export karega, ye app automatically video ko GPU Server par send kar ke remote render shuru kar dega!",
+            font=ctk.CTkFont(size=11),
+            text_color=TEXT_SECONDARY,
+            justify="left"
+        ).pack(anchor="w", padx=14, pady=8)
+
+        # Action buttons
+        act_row = ctk.CTkFrame(card, fg_color="transparent")
+        act_row.pack(fill="x", padx=22, pady=(0, 18))
+
+        btn_save_watch = ctk.CTkButton(
+            act_row,
+            text="💾  Save & Activate Watch Folder",
+            command=self._on_save_watch_folder_clicked,
+            fg_color=ACCENT_GREEN,
+            hover_color=ACCENT_GREEN_HOVER,
+            corner_radius=10,
+            height=38,
+            font=ctk.CTkFont(size=12, weight="bold")
+        )
+        btn_save_watch.pack(side="left", padx=(0, 10))
+
+        btn_open_watch = ctk.CTkButton(
+            act_row,
+            text="📂  Open Folder in Windows Explorer",
+            command=self._on_open_watch_folder_clicked,
+            fg_color="#F1F5F9",
+            hover_color="#E2E8F0",
+            text_color=TEXT_PRIMARY,
+            corner_radius=10,
+            height=38,
+            font=ctk.CTkFont(size=12, weight="bold")
+        )
+        btn_open_watch.pack(side="left")
+
     def _on_browse_watch_dir(self):
         chosen = filedialog.askdirectory(title="Select 3rd-Party Export Watch Folder")
         if chosen:
             self.entry_watch_dir.delete(0, "end")
             self.entry_watch_dir.insert(0, chosen)
+
+    def _on_save_watch_folder_clicked(self):
+        new_enabled = bool(self.chk_watch_enabled.get())
+        new_path = self.entry_watch_dir.get().strip()
+        if not new_path:
+            messagebox.showwarning("Watch Folder", "Please select or enter a valid directory path.")
+            return
+
+        p = Path(new_path)
+        try:
+            p.mkdir(parents=True, exist_ok=True)
+        except Exception as e:
+            messagebox.showerror("Invalid Path", f"Could not create or access folder:\n{e}")
+            return
+
+        self.app.config_data["watch_folder_enabled"] = new_enabled
+        self.app.config_data["watch_folder_path"] = str(p.resolve())
+        self.app.save_config()
+        self.app.restart_watch_service()
+        self.refresh_watch_folder_status()
+        status_msg = "Watch Folder Automation is now ACTIVE!\n\nAny video exported to this folder (by CapCut, Premiere, etc.) will be automatically offloaded to the GPU Server." if new_enabled else "Watch Folder Automation is now DISABLED."
+        messagebox.showinfo("Watch Folder Updated", status_msg)
+
+    def _on_open_watch_folder_clicked(self):
+        folder = self.entry_watch_dir.get().strip()
+        if folder:
+            p = Path(folder)
+            p.mkdir(parents=True, exist_ok=True)
+            import os
+            try:
+                os.startfile(str(p.resolve()))
+            except Exception:
+                import subprocess
+                subprocess.Popen(["explorer", str(p.resolve())])
+
+    def refresh_watch_folder_status(self):
+        is_active = getattr(self.app, "watch_service", None) and self.app.watch_service.is_active()
+        if hasattr(self, "lbl_watch_status"):
+            if is_active:
+                self.lbl_watch_status.configure(
+                    text="● Watcher Active",
+                    text_color=ACCENT_GREEN,
+                    fg_color="#D1FAE5"
+                )
+            else:
+                self.lbl_watch_status.configure(
+                    text="● Watcher Inactive",
+                    text_color=TEXT_MUTED,
+                    fg_color="#F1F5F9"
+                )
 
     def _on_disconnect_clicked(self):
         self.app.disconnect_server()

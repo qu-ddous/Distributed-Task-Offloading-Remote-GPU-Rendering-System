@@ -299,7 +299,13 @@ class App(ctk.CTk):
             self.views["render_job"].update_connection_status(False)
 
     def start_render_job(self, params: Dict[str, Any]):
-        # Switch to Active Job monitor page and trigger workflow
+        # Restore window to front, switch to Active Job monitor page and trigger workflow
+        try:
+            self.deiconify()
+            self.lift()
+            self.focus_force()
+        except Exception:
+            pass
         self.navigate_to("active_job")
         threading.Thread(target=self.views["active_job"].run_render_flow, args=(params,), daemon=True).start()
 
