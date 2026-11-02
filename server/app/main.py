@@ -102,6 +102,12 @@ if __name__ == "__main__":
 
     logger.info(f"Worker Server daemon running on port {settings.PORT}")
 
+    # Start LAN Auto-Discovery Daemon and ensure firewall accessibility
+    from shared.discovery import DiscoveryServer, ensure_windows_firewall_allowed
+    ensure_windows_firewall_allowed(settings.PORT)
+    discovery_daemon = DiscoveryServer(server_port=settings.PORT)
+    discovery_daemon.start()
+
     # Start Modern CustomTkinter Worker GUI
     try:
         gui_app = ServerApp(uvicorn_server_instance=server_instance)

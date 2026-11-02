@@ -76,6 +76,18 @@ class SettingsView(ctk.CTkScrollableFrame):
         )
         self.btn_test.pack(side="left", padx=(0, 8))
 
+        self.btn_auto_find = ctk.CTkButton(
+            act_row,
+            text="🔍  Auto-Find Server on Wi-Fi",
+            command=self._on_auto_find_server_clicked,
+            fg_color=ACCENT_PURPLE,
+            hover_color=ACCENT_PURPLE_HOVER,
+            corner_radius=10,
+            height=38,
+            font=ctk.CTkFont(size=12, weight="bold")
+        )
+        self.btn_auto_find.pack(side="left", padx=(0, 8))
+
         self.btn_disconnect = ctk.CTkButton(
             act_row,
             text="🔌  Disconnect",
@@ -91,7 +103,7 @@ class SettingsView(ctk.CTkScrollableFrame):
 
         self.btn_reset = ctk.CTkButton(
             act_row,
-            text="🗑️  Reset (127.0.0.1)",
+            text="🗑️  Reset",
             command=self._on_reset_connection_clicked,
             fg_color="#F1F5F9",
             hover_color="#E2E8F0",
