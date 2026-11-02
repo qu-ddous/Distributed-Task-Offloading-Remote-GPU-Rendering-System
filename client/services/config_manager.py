@@ -12,7 +12,9 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     "default_bitrate": "5M",
     "default_preset": "p4",
     "output_dir": str(Path.home() / "Downloads"),
-    "allow_cpu_fallback": True
+    "allow_cpu_fallback": True,
+    "watch_folder_enabled": True,
+    "watch_folder_path": str(Path.home() / "Videos" / "RenderWatch_In")
 }
 
 class ClientConfigManager:
