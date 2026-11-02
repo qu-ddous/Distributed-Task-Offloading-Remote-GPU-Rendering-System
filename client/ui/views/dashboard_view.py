@@ -22,15 +22,60 @@ class DashboardView(ctk.CTkScrollableFrame):
         self.banner_frame = ctk.CTkFrame(self, fg_color="#FEE2E2", corner_radius=14, border_width=1, border_color="#FCA5A5")
         self.banner_frame.pack(fill="x", padx=10, pady=(0, 14))
 
+        self.btn_banner_scan = ctk.CTkButton(
+            self.banner_frame,
+            text="🔍  Auto-Find Server on Wi-Fi",
+            command=self._on_banner_scan_clicked,
+            fg_color=ACCENT_PURPLE,
+            hover_color=ACCENT_PURPLE_HOVER,
+            corner_radius=8,
+            height=32,
+            font=ctk.CTkFont(size=11, weight="bold")
+        )
+        self.btn_banner_scan.pack(side="right", padx=14, pady=8)
+
         self.lbl_banner = ctk.CTkLabel(
             self.banner_frame,
-            text="🔴 WORKER SERVER OFFLINE: Dosra PC connect nahi hai. Host & Settings se IP connect karein.",
+            text="🔴 WORKER SERVER OFFLINE: Dosra PC connect nahi hai. 'Auto-Find Server' click karein ya Settings se IP connect karein.",
             font=ctk.CTkFont(size=13, weight="bold"),
             text_color=ACCENT_RED,
             padx=16,
             pady=10
         )
-        self.lbl_banner.pack(anchor="w")
+        self.lbl_banner.pack(side="left")
+
+    def _on_banner_scan_clicked(self):
+        self.btn_banner_scan.configure(state="disabled", text="🔍 Scanning Wi-Fi...")
+        import threading
+        def worker():
+            from shared.discovery import DiscoveryClient
+            servers = DiscoveryClient.auto_find_servers()
+            self.after(0, lambda: self._process_banner_scan_result(servers))
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _process_banner_scan_result(self, servers: list):
+        self.btn_banner_scan.configure(state="normal", text="🔍  Auto-Find Server on Wi-Fi")
+        if servers:
+            first = servers[0]
+            found_ip = first.get("ip")
+            found_port = first.get("port", 8000)
+            token = self.app.config_data.get("api_token", "")
+            net = NetworkClient(found_ip, found_port, token)
+            res = net.ping_and_health(timeout=3.0)
+            if res.get("success"):
+                lat = res.get("latency_ms", 0)
+                data = res.get("data", {})
+                self.app.on_connection_success(found_ip, found_port, token, lat, data)
+                if "settings" in self.app.views:
+                    self.app.views["settings"].update_host_port_display(found_ip, found_port)
+        else:
+            from tkinter import messagebox
+            messagebox.showwarning(
+                "No Server Detected",
+                "Local Wi-Fi par chalne wala koi GPUWorkerServer nahi mila.\n\n"
+                "1. Make sure dosre PC par 'GPUWorkerServer.exe' active run ho raha hai.\n"
+                "2. Check karein ke dono PCs SAME Wi-Fi ya switch se jude hain."
+            )
 
     def _build_hero_section(self):
         hero = ctk.CTkFrame(
@@ -496,6 +541,8 @@ class DashboardView(ctk.CTkScrollableFrame):
                 text="✅ WORKER SERVER ONLINE: Remote hardware node connected. Telemetry streaming active.",
                 text_color=ACCENT_GREEN
             )
+            if hasattr(self, "btn_banner_scan"):
+                self.btn_banner_scan.pack_forget()
             self.lbl_worker_val.configure(text="Online", text_color=ACCENT_GREEN)
             proto = health_data.get("protocol_version", "v1.0.0") if health_data else "v1.0.0"
             self.lbl_worker_sub.configure(text=f"Protocol {proto} handshake verified")

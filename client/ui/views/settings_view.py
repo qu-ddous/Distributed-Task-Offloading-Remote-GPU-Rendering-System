@@ -390,6 +390,36 @@ class SettingsView(ctk.CTkScrollableFrame):
 
         threading.Thread(target=task, daemon=True).start()
 
+    def _on_auto_find_server_clicked(self):
+        self.btn_auto_find.configure(state="disabled", text="🔍  Scanning Wi-Fi...")
+        import threading
+        def worker():
+            from shared.discovery import DiscoveryClient
+            servers = DiscoveryClient.auto_find_servers()
+            self.after(0, lambda: self._process_auto_find_result(servers))
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _process_auto_find_result(self, servers: list):
+        self.btn_auto_find.configure(state="normal", text="🔍  Auto-Find Server on Wi-Fi")
+        if servers:
+            first = servers[0]
+            found_ip = first.get("ip")
+            found_port = first.get("port", 8000)
+            self.entry_host.delete(0, "end")
+            self.entry_host.insert(0, str(found_ip))
+            self.entry_port.delete(0, "end")
+            self.entry_port.insert(0, str(found_port))
+            # Automatically save and trigger handshake
+            self._on_save_clicked()
+        else:
+            messagebox.showwarning(
+                "No Server Detected",
+                "Local Wi-Fi par chalne wala koi GPUWorkerServer nahi mila.\n\n"
+                "1. Check karein ke Server PC par 'GPUWorkerServer.exe' active chal raha hai.\n"
+                "2. Check karein ke dono PCs SAME Wi-Fi ya router se connected hain.\n"
+                "3. Ya phir Server PC par likhi hui IP manually yahan daal kar 'Test & Connect' dabayein."
+            )
+
     def _process_handshake(self, res: dict, host: str, port: str, token: str):
         self.btn_test.configure(state="normal", text="🔄  Test & Connect")
         if res.get("success"):
