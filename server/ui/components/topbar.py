@@ -78,11 +78,34 @@ class ServerTopbar(ctk.CTkFrame):
         self.status_text_box = ctk.CTkFrame(self.status_badge, fg_color="transparent")
         self.status_text_box.pack(side="left", padx=(0, 10), pady=4)
 
-        self.lbl_status_title = ctk.CTkLabel(self.status_text_box, text="Server Running  v1.0.0", font=ctk.CTkFont(size=11, weight="bold"), text_color=ACCENT_GREEN)
+        from shared.discovery import get_local_ip
+        my_ip = get_local_ip()
+
+        self.lbl_status_title = ctk.CTkLabel(self.status_text_box, text="Server Running • v1.0.0", font=ctk.CTkFont(size=11, weight="bold"), text_color=ACCENT_GREEN)
         self.lbl_status_title.pack(anchor="w")
 
-        self.lbl_status_sub = ctk.CTkLabel(self.status_text_box, text="Port: 8000 (Listening)", font=ctk.CTkFont(size=9), text_color=TEXT_MUTED)
+        self.lbl_status_sub = ctk.CTkLabel(self.status_text_box, text=f"LAN IP: {my_ip}:8000", font=ctk.CTkFont(size=10, weight="bold"), text_color=ACCENT_BLUE)
         self.lbl_status_sub.pack(anchor="w")
+
+        btn_copy = ctk.CTkButton(
+            self.status_badge,
+            text="📋 Copy IP",
+            width=72,
+            height=26,
+            font=ctk.CTkFont(size=10, weight="bold"),
+            fg_color="#FFFFFF",
+            hover_color="#E2E8F0",
+            text_color=TEXT_PRIMARY,
+            corner_radius=6,
+            command=lambda: self._copy_ip(f"{get_local_ip()}")
+        )
+        btn_copy.pack(side="left", padx=(0, 8), pady=4)
+
+    def _copy_ip(self, ip_text: str):
+        self.clipboard_clear()
+        self.clipboard_append(ip_text)
+        from tkinter import messagebox
+        messagebox.showinfo("IP Copied", f"Server IP address copied:\n\n{ip_text}\n\nDosre laptop ke Client mein ye IP enter karein!")
 
     def set_header_text(self, title: str, subtitle: str):
         self.lbl_title.configure(text=title)

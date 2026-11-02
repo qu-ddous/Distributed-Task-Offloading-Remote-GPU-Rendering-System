@@ -1,7 +1,7 @@
 import os
 import json
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 DEFAULT_SETTINGS: Dict[str, Any] = {
     "server_host": "127.0.0.1",
@@ -18,20 +18,46 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
 }
 
 class ClientConfigManager:
-    def __init__(self, config_path: Path = Path("client_settings.json")):
-        self.config_path = config_path
+    def __init__(self, config_path: Optional[Path] = None):
+        if config_path is not None:
+            self.config_path = config_path
+        else:
+            import sys
+            if getattr(sys, "frozen", False):
+                self.config_path = Path(sys.executable).parent / "client_settings.json"
+            else:
+                self.config_path = Path.cwd() / "client_settings.json"
 
     def load(self) -> Dict[str, Any]:
-        if not self.config_path.exists():
-            return DEFAULT_SETTINGS.copy()
+        merged = DEFAULT_SETTINGS.copy()
+        if self.config_path.exists():
+            try:
+                with open(self.config_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    merged.update(data)
+            except Exception:
+                pass
+
+        # Auto-adjust paths for current machine if pointing to a non-existent directory of another user
         try:
-            with open(self.config_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                merged = DEFAULT_SETTINGS.copy()
-                merged.update(data)
-                return merged
+            out_p = Path(merged.get("output_dir", ""))
+            if not out_p.exists():
+                fallback_out = Path.home() / "Downloads"
+                fallback_out.mkdir(parents=True, exist_ok=True)
+                merged["output_dir"] = str(fallback_out)
         except Exception:
-            return DEFAULT_SETTINGS.copy()
+            merged["output_dir"] = str(Path.home() / "Downloads")
+
+        try:
+            watch_p = Path(merged.get("watch_folder_path", ""))
+            if not watch_p.exists():
+                fallback_watch = Path.home() / "Videos" / "RenderWatch_In"
+                fallback_watch.mkdir(parents=True, exist_ok=True)
+                merged["watch_folder_path"] = str(fallback_watch)
+        except Exception:
+            merged["watch_folder_path"] = str(Path.home() / "Videos" / "RenderWatch_In")
+
+        return merged
 
     def save(self, settings: Dict[str, Any]):
         try:

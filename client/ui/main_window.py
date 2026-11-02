@@ -172,6 +172,33 @@ class App(ctk.CTk):
             self.on_connection_success(host, port, token, lat, data)
         else:
             self.on_connection_failure(res.get("error", "Offline"))
+            # If default localhost is offline, scan the LAN to see if another PC in the room is running the server!
+            if host in ("127.0.0.1", "localhost") and not self._user_manually_disconnected:
+                import threading
+                threading.Thread(target=self._auto_discover_lan_server, daemon=True).start()
+
+    def _auto_discover_lan_server(self):
+        try:
+            from shared.discovery import DiscoveryClient
+            servers = DiscoveryClient.auto_find_servers()
+            if servers and not self.is_connected:
+                first = servers[0]
+                found_ip = first.get("ip")
+                found_port = first.get("port", 8000)
+                token = self.config_data.get("api_token", "")
+                net = NetworkClient(found_ip, found_port, token)
+                res = net.ping_and_health(timeout=3.0)
+                if res.get("success"):
+                    lat = res.get("latency_ms", 0)
+                    data = res.get("data", {})
+                    self.after(0, lambda: self.on_connection_success(found_ip, found_port, token, lat, data))
+                    if "settings" in self.views:
+                        self.after(0, lambda: self.views["settings"].update_host_port_display(found_ip, found_port))
+                    if "dashboard" in self.views and hasattr(self.views["dashboard"], "entry_quick_ip"):
+                        self.after(0, lambda: self.views["dashboard"].entry_quick_ip.delete(0, "end"))
+                        self.after(0, lambda: self.views["dashboard"].entry_quick_ip.insert(0, str(found_ip)))
+        except Exception:
+            pass
 
     def _start_heartbeat_monitor(self):
         import time

@@ -22,9 +22,40 @@ class DashboardView(ctk.CTkScrollableFrame):
         self.banner_frame = ctk.CTkFrame(self, fg_color="#FEE2E2", corner_radius=14, border_width=1, border_color="#FCA5A5")
         self.banner_frame.pack(fill="x", padx=10, pady=(0, 14))
 
+        self.banner_ctrls = ctk.CTkFrame(self.banner_frame, fg_color="transparent")
+        self.banner_ctrls.pack(side="right", padx=10, pady=6)
+
+        self.entry_quick_ip = ctk.CTkEntry(
+            self.banner_ctrls,
+            placeholder_text="Enter Server IP...",
+            width=145,
+            height=32,
+            font=ctk.CTkFont(size=11),
+            fg_color="#FFFFFF",
+            border_color="#CBD5E1",
+            corner_radius=8
+        )
+        curr_host = self.app.config_data.get("server_host", "127.0.0.1")
+        if curr_host and curr_host != "127.0.0.1":
+            self.entry_quick_ip.insert(0, curr_host)
+        self.entry_quick_ip.pack(side="left", padx=(0, 6))
+
+        self.btn_quick_connect = ctk.CTkButton(
+            self.banner_ctrls,
+            text="⚡ Connect",
+            command=self._on_quick_ip_connect_clicked,
+            fg_color=ACCENT_BLUE,
+            hover_color=ACCENT_BLUE_HOVER,
+            corner_radius=8,
+            width=80,
+            height=32,
+            font=ctk.CTkFont(size=11, weight="bold")
+        )
+        self.btn_quick_connect.pack(side="left", padx=(0, 6))
+
         self.btn_banner_scan = ctk.CTkButton(
-            self.banner_frame,
-            text="🔍  Auto-Find Server on Wi-Fi",
+            self.banner_ctrls,
+            text="🔍 Auto-Find Server",
             command=self._on_banner_scan_clicked,
             fg_color=ACCENT_PURPLE,
             hover_color=ACCENT_PURPLE_HOVER,
@@ -32,17 +63,46 @@ class DashboardView(ctk.CTkScrollableFrame):
             height=32,
             font=ctk.CTkFont(size=11, weight="bold")
         )
-        self.btn_banner_scan.pack(side="right", padx=14, pady=8)
+        self.btn_banner_scan.pack(side="left")
 
         self.lbl_banner = ctk.CTkLabel(
             self.banner_frame,
-            text="🔴 WORKER SERVER OFFLINE: Dosra PC connect nahi hai. 'Auto-Find Server' click karein ya Settings se IP connect karein.",
-            font=ctk.CTkFont(size=13, weight="bold"),
+            text="🔴 WORKER SERVER OFFLINE: Dosra PC connect nahi hai. Server IP enter karein ya 'Auto-Find' dabayein.",
+            font=ctk.CTkFont(size=12, weight="bold"),
             text_color=ACCENT_RED,
-            padx=16,
+            padx=14,
             pady=10
         )
         self.lbl_banner.pack(side="left")
+
+    def _on_quick_ip_connect_clicked(self):
+        target_ip = self.entry_quick_ip.get().strip()
+        if not target_ip:
+            from tkinter import messagebox
+            messagebox.showwarning("Enter IP", "Please enter the Worker Server IP address.")
+            return
+
+        self.btn_quick_connect.configure(state="disabled", text="Connecting...")
+        import threading
+        def worker():
+            port = self.app.config_data.get("server_port", 8000)
+            token = self.app.config_data.get("api_token", "")
+            net = NetworkClient(target_ip, port, token)
+            res = net.ping_and_health(timeout=4.0)
+            def done():
+                self.btn_quick_connect.configure(state="normal", text="⚡ Connect")
+                if res.get("success"):
+                    lat = res.get("latency_ms", 0)
+                    data = res.get("data", {})
+                    self.app.on_connection_success(net.host, net.port, token, lat, data)
+                    if "settings" in self.app.views:
+                        self.app.views["settings"].update_host_port_display(net.host, net.port)
+                else:
+                    from tkinter import messagebox
+                    err = res.get("error", "Host unreachable")
+                    messagebox.showerror("Connection Failed", f"Could not connect to {net.host}:{net.port}\n\nError: {err}\n\nMake sure GPUWorkerServer.exe is running on that PC and both PCs are on the same Wi-Fi.")
+            self.after(0, done)
+        threading.Thread(target=worker, daemon=True).start()
 
     def _on_banner_scan_clicked(self):
         self.btn_banner_scan.configure(state="disabled", text="🔍 Scanning Wi-Fi...")
@@ -541,8 +601,8 @@ class DashboardView(ctk.CTkScrollableFrame):
                 text="✅ WORKER SERVER ONLINE: Remote hardware node connected. Telemetry streaming active.",
                 text_color=ACCENT_GREEN
             )
-            if hasattr(self, "btn_banner_scan"):
-                self.btn_banner_scan.pack_forget()
+            if hasattr(self, "banner_ctrls"):
+                self.banner_ctrls.pack_forget()
             self.lbl_worker_val.configure(text="Online", text_color=ACCENT_GREEN)
             proto = health_data.get("protocol_version", "v1.0.0") if health_data else "v1.0.0"
             self.lbl_worker_sub.configure(text=f"Protocol {proto} handshake verified")
@@ -630,8 +690,10 @@ class DashboardView(ctk.CTkScrollableFrame):
                 self.lbl_rd_worker_sub.configure(text="Remote Node Handshake Verified")
         else:
             self.banner_frame.configure(fg_color="#FEE2E2", border_color="#FCA5A5")
+            if hasattr(self, "banner_ctrls"):
+                self.banner_ctrls.pack(side="right", padx=10, pady=6)
             self.lbl_banner.configure(
-                text="🔴 WORKER SERVER OFFLINE: Dosra PC connect nahi hai. Host & Settings se IP connect karein.",
+                text="🔴 WORKER SERVER OFFLINE: Dosra PC connect nahi hai. Server IP enter karein ya 'Auto-Find' dabayein.",
                 text_color=ACCENT_RED
             )
             self.lbl_worker_val.configure(text="Offline", text_color=ACCENT_RED)
