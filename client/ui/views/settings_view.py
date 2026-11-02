@@ -1,3 +1,4 @@
+from typing import Any
 from pathlib import Path
 from tkinter import messagebox, filedialog
 import customtkinter as ctk
