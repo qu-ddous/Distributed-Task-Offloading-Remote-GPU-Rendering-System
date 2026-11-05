@@ -78,7 +78,7 @@ class SettingsView(ctk.CTkScrollableFrame):
 
         self.btn_auto_find = ctk.CTkButton(
             act_row,
-            text="🔍  Auto-Find Server on Wi-Fi",
+            text="🔍  Auto-Detect (Ethernet / LAN)",
             command=self._on_auto_find_server_clicked,
             fg_color=ACCENT_PURPLE,
             hover_color=ACCENT_PURPLE_HOVER,
@@ -391,7 +391,7 @@ class SettingsView(ctk.CTkScrollableFrame):
         threading.Thread(target=task, daemon=True).start()
 
     def _on_auto_find_server_clicked(self):
-        self.btn_auto_find.configure(state="disabled", text="🔍  Scanning Wi-Fi...")
+        self.btn_auto_find.configure(state="disabled", text="🔍  Detecting Cable / LAN...")
         import threading
         def worker():
             from shared.discovery import DiscoveryClient
@@ -400,7 +400,7 @@ class SettingsView(ctk.CTkScrollableFrame):
         threading.Thread(target=worker, daemon=True).start()
 
     def _process_auto_find_result(self, servers: list):
-        self.btn_auto_find.configure(state="normal", text="🔍  Auto-Find Server on Wi-Fi")
+        self.btn_auto_find.configure(state="normal", text="🔍  Auto-Detect (Ethernet / LAN)")
         if servers:
             first = servers[0]
             found_ip = first.get("ip")
@@ -409,15 +409,15 @@ class SettingsView(ctk.CTkScrollableFrame):
             self.entry_host.insert(0, str(found_ip))
             self.entry_port.delete(0, "end")
             self.entry_port.insert(0, str(found_port))
-            # Automatically save and trigger handshake
             self._on_save_clicked()
         else:
             messagebox.showwarning(
                 "No Server Detected",
-                "Local Wi-Fi par chalne wala koi GPUWorkerServer nahi mila.\n\n"
-                "1. Check karein ke Server PC par 'GPUWorkerServer.exe' active chal raha hai.\n"
-                "2. Check karein ke dono PCs SAME Wi-Fi ya router se connected hain.\n"
-                "3. Ya phir Server PC par likhi hui IP manually yahan daal kar 'Test & Connect' dabayein."
+                "Ethernet Cable / Local Network par GPUWorkerServer auto-detect nahi ho saka.\n\n"
+                "💡 Solution Steps:\n"
+                "1. Server PC par GPUWorkerServer chalaein aur top bar par '🛡️ Unblock Firewall' button dabayein ya 'FIX_FIREWALL.bat' run karein.\n"
+                "2. Windows Firewall direct cable ko block kar deti hai jab tak use unblock na kiya jaye.\n"
+                "3. Server PC ke top bar par di gayi IP (e.g. 169.254.x.x ya LAN IP) ko yahan enter karein aur 'Test & Connect' dabayein."
             )
 
     def _process_handshake(self, res: dict, host: str, port: str, token: str):
@@ -433,7 +433,14 @@ class SettingsView(ctk.CTkScrollableFrame):
             err = res.get("error", "Unknown connection failure")
             self.app.on_connection_failure(err)
             self._update_badge(False)
-            messagebox.showerror("Connection Failed", f"Could not connect to worker at {host}:{port}:\n\n{err}\n\nMake sure the worker server is running and the IP address is correct.")
+            messagebox.showerror(
+                "Connection Failed",
+                f"Could not connect to worker at {host}:{port}:\n\n{err}\n\n"
+                "💡 AGAR CONNECTION TIMEOUT YA FAIL HO RAHA HAI:\n"
+                "1. Server PC par top bar mein '🛡️ Unblock Firewall' dabayein ya 'FIX_FIREWALL.bat' right click -> Run as Administrator karein.\n"
+                "2. Direct LAN Cable ko Windows Defender Firewall 'Public Network' me daal kar block kar deta hai.\n"
+                "3. Server PC ke top bar par jo IP nazar aa rahi hai wo exactly yahan daalein."
+            )
 
     def _on_save_clicked(self):
         new_host = self.entry_host.get().strip()

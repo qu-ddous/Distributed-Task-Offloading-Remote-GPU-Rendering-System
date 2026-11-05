@@ -237,6 +237,8 @@ class ActiveJobView(ctk.CTkFrame):
         start_overall = time.time()
 
         # Phase 1: Uploading
+        if hasattr(self.app, "topbar") and hasattr(self.app.topbar, "set_job_active"):
+            self.after(0, lambda: self.app.topbar.set_job_active(True, "⬆️ Uploading Task..."))
         self.lbl_stage.configure(text="Stage: Uploading video...")
         self.lbl_pct.configure(text="0.0%")
         self.progress_bar.set(0.0)
@@ -376,6 +378,8 @@ class ActiveJobView(ctk.CTkFrame):
         self.progress_bar.set(pct / 100.0)
         self.lbl_pct.configure(text=f"{pct:.1f}%")
         self.lbl_stage.configure(text=f"Stage: Uploading ({sent/(1024*1024):.1f}/{total/(1024*1024):.1f} MB)")
+        if hasattr(self.app, "topbar") and hasattr(self.app.topbar, "set_job_active"):
+            self.app.topbar.set_job_active(True, f"⬆️ Uploading ({pct:.0f}%)")
 
     def _update_render_ui(self, pct: float, elapsed: float, eta: Optional[float], speed: Optional[str], fps: Optional[float], server_telemetry: Optional[dict] = None):
         self.progress_bar.set(pct / 100.0)
@@ -409,9 +413,13 @@ class ActiveJobView(ctk.CTkFrame):
         self.progress_bar.set(pct / 100.0)
         self.lbl_pct.configure(text=f"{pct:.1f}%")
         self.lbl_stage.configure(text=f"Stage: Downloading ({rec/(1024*1024):.1f}/{total/(1024*1024):.1f} MB)")
+        if hasattr(self.app, "topbar") and hasattr(self.app.topbar, "set_job_active"):
+            self.app.topbar.set_job_active(True, f"⬇️ Downloading ({pct:.0f}%)")
 
     def _on_failure(self, err_msg: str):
         self.active_job_id = None
+        if hasattr(self.app, "topbar") and hasattr(self.app.topbar, "set_job_active"):
+            self.app.topbar.set_job_active(False)
         self.btn_cancel.configure(state="disabled")
         self.progress_bar.set(0.0)
         self.lbl_stage.configure(text="Stage: Failed")
@@ -423,6 +431,8 @@ class ActiveJobView(ctk.CTkFrame):
 
     def _on_success(self, target_file: Path, upload_sec: float, render_sec: float, download_sec: float, total_sec: float, checksum: str):
         self.active_job_id = None
+        if hasattr(self.app, "topbar") and hasattr(self.app.topbar, "set_job_active"):
+            self.app.topbar.set_job_active(False)
         self.btn_cancel.configure(state="disabled")
         self.progress_bar.set(1.0)
         self.lbl_pct.configure(text="100.0%")

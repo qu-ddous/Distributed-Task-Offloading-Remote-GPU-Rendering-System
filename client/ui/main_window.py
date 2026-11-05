@@ -89,7 +89,7 @@ class App(ctk.CTk):
         self.sidebar.grid(row=0, column=0, rowspan=2, sticky="nsew")
 
         # 2. Topbar Status Header
-        self.topbar = TopbarHeader(self, on_quick_connect=self._startup_connection_check)
+        self.topbar = TopbarHeader(self, on_quick_connect=self._startup_connection_check, on_active_job_click=lambda: self.navigate_to("active_job"))
         self.topbar.grid(row=0, column=1, sticky="ew")
 
         # 3. Main Page Host Container (Independent Views)
@@ -172,8 +172,8 @@ class App(ctk.CTk):
             self.on_connection_success(host, port, token, lat, data)
         else:
             self.on_connection_failure(res.get("error", "Offline"))
-            # If default localhost is offline, scan the LAN to see if another PC in the room is running the server!
-            if host in ("127.0.0.1", "localhost") and not self._user_manually_disconnected:
+            # If configured host is offline, automatically check if a server is running on the direct Ethernet cable or LAN!
+            if not self._user_manually_disconnected:
                 import threading
                 threading.Thread(target=self._auto_discover_lan_server, daemon=True).start()
 
@@ -244,6 +244,8 @@ class App(ctk.CTk):
                         # Only mark offline after verified consecutive failures
                         if consecutive_failures >= max_allowed_failures:
                             self.after(0, lambda r=res, h=host, p=port, t=token: self._process_heartbeat_result(r, h, p, t, False))
+                        if not self.is_connected and (tick_count % 2 == 0):
+                            self._auto_discover_lan_server()
                 except Exception:
                     pass
 

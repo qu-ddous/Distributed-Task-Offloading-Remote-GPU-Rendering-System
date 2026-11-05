@@ -351,121 +351,50 @@ class SystemService:
     @staticmethod
     def get_all_lan_adapters() -> List[Dict[str, Any]]:
         """
-        Discovers physical Ethernet (wired Cat6/LAN) adapters only.
-        Completely excludes Wi-Fi, wireless, virtual, cellular, and loopback adapters.
+        Discovers all active physical network adapters (Direct Ethernet cable, wired LAN, Wi-Fi).
+        Excludes dead, virtual, and disconnected interfaces.
         """
-        adapters = []
         try:
-            stats = psutil.net_if_stats()
-            for iface, addrs in psutil.net_if_addrs().items():
-                iface_lower = iface.lower()
-                # Exclude any Wi-Fi, wireless, virtual, cellular, or Wi-Fi Direct interfaces
-                is_wifi_or_virtual = any(v in iface_lower for v in [
-                    "wi-fi", "wifi", "wireless", "wlan", "802.11", "airdrop",
-                    "wi-fi direct", "wifi direct", "local area connection*",
-                    "virtual", "vethernet", "vmware", "loopback", "wsl", "hyper-v",
-                    "pseudo", "tap", "tun", "zerotier", "tailscale", "bluetooth",
-                    "cellular", "mobile", "wwan", "dial-up", "remote"
-                ])
-                if is_wifi_or_virtual:
-                    continue
-
-                st = stats.get(iface)
-                is_up = st.isup if st else False
-
-                for a in addrs:
-                    if a.family == socket.AF_INET:
-                        ip = a.address
-                        if ip.startswith("127."):
-                            continue
-                        ad_type = "Ethernet (Cat6 / Wired LAN)"
-                        if ip.startswith("169.254."):
-                            ad_type += " (Direct Cable APIPA)"
-                        adapters.append({
-                            "interface": iface,
-                            "ip": ip,
-                            "is_up": is_up,
-                            "is_virtual": False,
-                            "type": ad_type
-                        })
+            from shared.discovery import get_active_adapters
+            return get_active_adapters()
         except Exception:
-            pass
-        return adapters
+            return []
 
     @classmethod
     def get_primary_ip(cls) -> str:
         """
-        Determines the system's active Ethernet (wired Cat6/LAN) IPv4 address.
-        Completely ignores Wi-Fi and strictly selects the physical Ethernet connection.
+        Determines the system's primary reachable IPv4 address.
+        Prioritizes direct Ethernet cable (APIPA 169.254.x.x) or wired LAN first, with Wi-Fi fallback.
         """
-        adapters = cls.get_all_lan_adapters()
-
-        # 1. Active physical Ethernet adapter that is UP
-        for ad in adapters:
-            if ad.get("is_up") and not ad["ip"].startswith("127."):
-                return ad["ip"]
-
-        # 2. Any detected Ethernet adapter with valid IPv4
-        for ad in adapters:
-            if not ad["ip"].startswith("127."):
-                return ad["ip"]
-
-        # 3. Fallback
-        return "127.0.0.1"
+        try:
+            from shared.discovery import get_local_ip
+            return get_local_ip()
+        except Exception:
+            return "127.0.0.1"
 
     @classmethod
     def ensure_firewall_rule(cls, port: int = 8000) -> bool:
         """
-        Ensures an inbound Windows Defender Firewall rule exists for the specified port (TCP).
-        If missing, attempts to create it automatically.
-        Uses ShellExecute 'runas' if administrator elevation is required.
-        Completely silent and creates no flashing console window.
+        Ensures inbound Windows Defender Firewall rules exist for Port 8000 (TCP),
+        Port 8002 (UDP Discovery), and direct Ethernet cable connections (Public profile).
+        Removes any conflicting 'Block' rules created by Windows.
         """
-        if os.name != "nt":
-            return True
-
-        rule_name = f"GPU Render Studio Server (Port {port})"
         try:
-            # 1. Check if rule already exists (no elevation required)
-            check = subprocess.run(
-                ["netsh", "advfirewall", "firewall", "show", "rule", f"name={rule_name}"],
-                capture_output=True,
-                text=True,
-                creationflags=CREATE_NO_WINDOW
-            )
-            if check.returncode == 0 and "No rules match" not in check.stdout:
-                return True
-
-            # 2. Try adding rule directly (succeeds if running as Administrator)
-            add_res = subprocess.run(
-                ["netsh", "advfirewall", "firewall", "add", "rule",
-                 f"name={rule_name}", "dir=in", "action=allow", "protocol=TCP",
-                 f"localport={port}", "profile=any"],
-                capture_output=True,
-                text=True,
-                creationflags=CREATE_NO_WINDOW
-            )
-            if add_res.returncode == 0:
-                return True
-
-            # 3. Elevate via ShellExecuteW 'runas' to add rule silently
-            import ctypes
-            args = f'advfirewall firewall add rule name="{rule_name}" dir=in action=allow protocol=TCP localport={port} profile=any'
-            ret = ctypes.windll.shell32.ShellExecuteW(None, "runas", "netsh", args, None, 0)
-            return ret > 32
+            from shared.discovery import ensure_windows_firewall_allowed
+            return ensure_windows_firewall_allowed(port)
         except Exception:
             return False
 
     @classmethod
     def get_all_lan_ips(cls) -> List[str]:
         """
-        Returns all valid IPv4 LAN addresses on the machine.
+        Returns all valid, active IPv4 LAN addresses on the machine.
         """
-        adapters = cls.get_all_lan_adapters()
-        ips = [ad["ip"] for ad in adapters if ad.get("is_up")]
-        if not ips:
-            ips = [ad["ip"] for ad in adapters]
-        return ips or ["127.0.0.1"]
+        try:
+            from shared.discovery import get_all_lan_ips
+            return get_all_lan_ips()
+        except Exception:
+            return ["127.0.0.1"]
 
     @classmethod
     def get_detailed_gpu_info(cls) -> Dict[str, Any]:

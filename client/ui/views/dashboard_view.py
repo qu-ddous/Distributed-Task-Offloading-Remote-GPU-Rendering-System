@@ -100,12 +100,12 @@ class DashboardView(ctk.CTkScrollableFrame):
                 else:
                     from tkinter import messagebox
                     err = res.get("error", "Host unreachable")
-                    messagebox.showerror("Connection Failed", f"Could not connect to {net.host}:{net.port}\n\nError: {err}\n\nMake sure GPUWorkerServer.exe is running on that PC and both PCs are on the same Wi-Fi.")
+                    messagebox.showerror("Connection Failed", f"Could not connect to {net.host}:{net.port}\n\nError: {err}\n\nMake sure GPUWorkerServer.exe is running on that PC and Ethernet cable is connected.")
             self.after(0, done)
         threading.Thread(target=worker, daemon=True).start()
 
     def _on_banner_scan_clicked(self):
-        self.btn_banner_scan.configure(state="disabled", text="🔍 Scanning Wi-Fi...")
+        self.btn_banner_scan.configure(state="disabled", text="🔍 Detecting Cable / LAN...")
         import threading
         def worker():
             from shared.discovery import DiscoveryClient
@@ -114,7 +114,7 @@ class DashboardView(ctk.CTkScrollableFrame):
         threading.Thread(target=worker, daemon=True).start()
 
     def _process_banner_scan_result(self, servers: list):
-        self.btn_banner_scan.configure(state="normal", text="🔍  Auto-Find Server on Wi-Fi")
+        self.btn_banner_scan.configure(state="normal", text="🔍  Auto-Detect (Ethernet / LAN)")
         if servers:
             first = servers[0]
             found_ip = first.get("ip")
@@ -132,9 +132,9 @@ class DashboardView(ctk.CTkScrollableFrame):
             from tkinter import messagebox
             messagebox.showwarning(
                 "No Server Detected",
-                "Local Wi-Fi par chalne wala koi GPUWorkerServer nahi mila.\n\n"
+                "Ethernet Cable / Local Network par chalne wala koi GPUWorkerServer nahi mila.\n\n"
                 "1. Make sure dosre PC par 'GPUWorkerServer.exe' active run ho raha hai.\n"
-                "2. Check karein ke dono PCs SAME Wi-Fi ya switch se jude hain."
+                "2. Check karein ke Ethernet cable dono PCs ke darmyan theek connected hai."
             )
 
     def _build_hero_section(self):
@@ -293,7 +293,7 @@ class DashboardView(ctk.CTkScrollableFrame):
         self.lbl_latency_val = ctk.CTkLabel(n_title_box, text="-- ms", font=ctk.CTkFont(size=18, weight="bold"), text_color=TEXT_MUTED)
         self.lbl_latency_val.pack(anchor="w")
 
-        self.lbl_latency_sub = ctk.CTkLabel(n_content, text="Gigabit / Wi-Fi LAN active", font=ctk.CTkFont(size=11), text_color=TEXT_DIM)
+        self.lbl_latency_sub = ctk.CTkLabel(n_content, text="Gigabit Ethernet / LAN active", font=ctk.CTkFont(size=11), text_color=TEXT_DIM)
         self.lbl_latency_sub.pack(anchor="w", pady=(4, 0))
 
     def _build_watch_folder_card(self):
@@ -488,7 +488,7 @@ class DashboardView(ctk.CTkScrollableFrame):
         t3.pack(side="left", fill="both")
         self.lbl_rd_net = ctk.CTkLabel(t3, text="Network Link: Disconnected", font=ctk.CTkFont(size=12, weight="bold"), text_color=ACCENT_RED)
         self.lbl_rd_net.pack(anchor="w")
-        self.lbl_rd_net_sub = ctk.CTkLabel(t3, text="Connect via Ethernet cable or Wi-Fi", font=ctk.CTkFont(size=11), text_color=TEXT_MUTED)
+        self.lbl_rd_net_sub = ctk.CTkLabel(t3, text="Connect via Ethernet cable or wired LAN", font=ctk.CTkFont(size=11), text_color=TEXT_MUTED)
         self.lbl_rd_net_sub.pack(anchor="w")
 
         # 4. Failover Safety
@@ -609,7 +609,7 @@ class DashboardView(ctk.CTkScrollableFrame):
 
             lat_color = ACCENT_GREEN if latency < 25 else ACCENT_ORANGE
             self.lbl_latency_val.configure(text=f"{latency:.1f} ms", text_color=lat_color)
-            self.lbl_latency_sub.configure(text="Gigabit / Wi-Fi LAN active")
+            self.lbl_latency_sub.configure(text="Gigabit Ethernet / LAN active")
 
             self.lbl_telem_live_badge.configure(text="● Live Telemetry Active", text_color=ACCENT_GREEN, fg_color="#D1FAE5")
 
@@ -701,13 +701,13 @@ class DashboardView(ctk.CTkScrollableFrame):
             self.lbl_gpu_val.configure(text="NVENC Missing", text_color=ACCENT_ORANGE)
             self.lbl_gpu_sub.configure(text="CPU fallback mode available")
             self.lbl_latency_val.configure(text="-- ms", text_color=TEXT_MUTED)
-            self.lbl_latency_sub.configure(text="Gigabit / Wi-Fi LAN active")
+            self.lbl_latency_sub.configure(text="Gigabit Ethernet / LAN active")
 
             # Update Readiness Card
             self.lbl_rd_worker.configure(text="Worker Station: Offline", text_color=ACCENT_RED)
             self.lbl_rd_worker_sub.configure(text="Awaiting LAN wire connection to Server")
             self.lbl_rd_net.configure(text="Network Link: Disconnected", text_color=ACCENT_RED)
-            self.lbl_rd_net_sub.configure(text="Connect via Ethernet cable or Wi-Fi")
+            self.lbl_rd_net_sub.configure(text="Connect via Ethernet cable or wired LAN")
 
             self.lbl_telem_live_badge.configure(text="● Node Offline", text_color=ACCENT_RED, fg_color="#FEE2E2")
             self.lbl_hw_host.configure(text="Node: Disconnected")

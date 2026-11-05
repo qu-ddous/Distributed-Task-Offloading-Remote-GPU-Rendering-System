@@ -1,12 +1,13 @@
-from typing import Callable
+from typing import Callable, Optional
 import customtkinter as ctk
 
 from client.ui.theme import *
 
 class TopbarHeader(ctk.CTkFrame):
-    def __init__(self, master, on_quick_connect: Callable[[], None]):
+    def __init__(self, master, on_quick_connect: Callable[[], None], on_active_job_click: Optional[Callable[[], None]] = None):
         super().__init__(master, fg_color=BG_CARD, height=65, corner_radius=0, border_width=1, border_color=BORDER_COLOR)
         self.on_quick_connect = on_quick_connect
+        self.on_active_job_click = on_active_job_click
 
         self._build_header()
 
@@ -26,11 +27,25 @@ class TopbarHeader(ctk.CTkFrame):
         self.lbl_page_title.pack(anchor="w")
 
         # Right Status Pills (Tactile Clay Badges)
-        right_box = ctk.CTkFrame(self, fg_color="transparent")
-        right_box.pack(side="right", padx=22, pady=12)
+        self.right_box = ctk.CTkFrame(self, fg_color="transparent")
+        self.right_box.pack(side="right", padx=22, pady=12)
+
+        self.btn_job_indicator = ctk.CTkButton(
+            self.right_box,
+            text="⚡ Job In Progress...",
+            command=self._on_active_job_pill_clicked,
+            font=ctk.CTkFont(size=12, weight="bold"),
+            text_color="#FFFFFF",
+            fg_color=ACCENT_PURPLE,
+            hover_color=ACCENT_PURPLE_HOVER,
+            corner_radius=8,
+            height=32,
+            padx=10
+        )
+        # Initially hidden until a job starts
 
         self.pill_worker = ctk.CTkLabel(
-            right_box,
+            self.right_box,
             text="● Worker Offline",
             font=ctk.CTkFont(size=12, weight="bold"),
             text_color=ACCENT_RED,
@@ -42,7 +57,7 @@ class TopbarHeader(ctk.CTkFrame):
         self.pill_worker.pack(side="left", padx=(0, 10))
 
         self.pill_latency = ctk.CTkLabel(
-            right_box,
+            self.right_box,
             text="Latency: --",
             font=ctk.CTkFont(size=12, weight="bold"),
             text_color=TEXT_MUTED,
@@ -54,7 +69,7 @@ class TopbarHeader(ctk.CTkFrame):
         self.pill_latency.pack(side="left", padx=(0, 12))
 
         self.btn_ping = ctk.CTkButton(
-            right_box,
+            self.right_box,
             text="🔄 Re-Check",
             width=95,
             height=32,
@@ -66,6 +81,22 @@ class TopbarHeader(ctk.CTkFrame):
             command=self.on_quick_connect
         )
         self.btn_ping.pack(side="left")
+
+    def _on_active_job_pill_clicked(self):
+        if self.on_active_job_click:
+            self.on_active_job_click()
+
+    def set_job_active(self, is_active: bool, text: str = "⚡ Job In Progress..."):
+        try:
+            if is_active:
+                self.btn_job_indicator.configure(text=text)
+                if not self.btn_job_indicator.winfo_ismapped():
+                    self.btn_job_indicator.pack(side="left", before=self.pill_worker, padx=(0, 10))
+            else:
+                if self.btn_job_indicator.winfo_ismapped():
+                    self.btn_job_indicator.pack_forget()
+        except Exception:
+            pass
 
     def set_title(self, title: str):
         self.lbl_page_title.configure(text=title)
@@ -96,5 +127,3 @@ class TopbarHeader(ctk.CTkFrame):
                 text_color=TEXT_MUTED,
                 fg_color="#F1F5F9"
             )
-
-

@@ -43,10 +43,17 @@ def main():
     server_thread = threading.Thread(target=server_instance.run, daemon=True)
     server_thread.start()
 
-    # Automatically ensure Windows Firewall rule exists for server port (TCP 8000)
-    from server.app.services.system_service import SystemService
-    firewall_thread = threading.Thread(target=SystemService.ensure_firewall_rule, args=(settings.PORT,), daemon=True)
+    # Automatically ensure Windows Firewall rules exist for server port (TCP 8000 & UDP 8002)
+    from shared.discovery import DiscoveryServer, ensure_windows_firewall_allowed
+    firewall_thread = threading.Thread(target=ensure_windows_firewall_allowed, args=(settings.PORT,), daemon=True)
     firewall_thread.start()
+
+    # Start LAN / Ethernet Cable Auto-Discovery Daemon
+    try:
+        discovery_daemon = DiscoveryServer(server_port=settings.PORT)
+        discovery_daemon.start()
+    except Exception:
+        pass
 
     # Start Modern CustomTkinter Worker GUI
     gui_app = ServerApp(uvicorn_server_instance=server_instance)
