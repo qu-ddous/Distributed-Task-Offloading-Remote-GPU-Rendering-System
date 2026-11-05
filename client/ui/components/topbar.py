@@ -39,8 +39,7 @@ class TopbarHeader(ctk.CTkFrame):
             fg_color=ACCENT_PURPLE,
             hover_color=ACCENT_PURPLE_HOVER,
             corner_radius=8,
-            height=32,
-            padx=10
+            height=32
         )
         # Initially hidden until a job starts
 
