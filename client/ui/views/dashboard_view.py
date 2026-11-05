@@ -130,12 +130,29 @@ class DashboardView(ctk.CTkScrollableFrame):
                     self.app.views["settings"].update_host_port_display(found_ip, found_port)
         else:
             from tkinter import messagebox
-            messagebox.showwarning(
-                "No Server Detected",
-                "Ethernet Cable / Local Network par chalne wala koi GPUWorkerServer nahi mila.\n\n"
-                "1. Make sure dosre PC par 'GPUWorkerServer.exe' active run ho raha hai.\n"
-                "2. Check karein ke Ethernet cable dono PCs ke darmyan theek connected hai."
-            )
+            from shared.discovery import has_active_ethernet_adapter
+            has_eth = False
+            try:
+                has_eth = has_active_ethernet_adapter()
+            except Exception:
+                pass
+
+            if not has_eth:
+                messagebox.showwarning(
+                    "Physical Cable Check",
+                    "⚠️ Is Laptop par koi Active Ethernet Adapter / Cable connect nahi mili!\n\n"
+                    "• Agar aap ka laptop slim hai (jaise HP EliteBook / Dell), toh USB-to-LAN dongle ko USB port mein theek se lagayein.\n"
+                    "• Check karein ke LAN cable dono taraf firmly lagi ho.\n"
+                    "• Server PC par GPUWorkerServer.exe start karein aur 'Unblock Firewall' dabayein."
+                )
+            else:
+                messagebox.showwarning(
+                    "No Server Detected",
+                    "Ethernet Cable / Local Network par chalne wala koi GPUWorkerServer nahi mila.\n\n"
+                    "1. Make sure dosre PC par 'GPUWorkerServer.exe' active run ho raha hai.\n"
+                    "2. Check karein ke Ethernet cable dono PCs ke darmyan theek connected hai.\n"
+                    "3. Server PC ke top bar par di gayi IP enter karein."
+                )
 
     def _build_hero_section(self):
         hero = ctk.CTkFrame(

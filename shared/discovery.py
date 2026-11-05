@@ -44,8 +44,8 @@ def get_active_adapters() -> List[Dict[str, Any]]:
             ]):
                 continue
 
-            is_eth = any(w in name_low for w in ["ethernet", "lan", "eth", "wired", "gigabit", "realtek", "intel"])
             is_wifi = any(w in name_low for w in ["wi-fi", "wifi", "wireless", "wlan", "802.11"])
+            is_eth = (not is_wifi) and any(w in name_low for w in ["ethernet", "lan", "eth", "wired", "gigabit", "realtek", "broadcom", "marvell"])
 
             for a in if_addrs:
                 if a.family == socket.AF_INET:
@@ -53,25 +53,30 @@ def get_active_adapters() -> List[Dict[str, Any]]:
                     if ip.startswith(("127.", "0.")):
                         continue
 
-                    is_cable = ip.startswith("169.254.")
+                    is_cable = ip.startswith(("169.254.", "192.168.99."))
                     if is_cable:
-                        ad_type = "Direct Ethernet Cable (APIPA)"
-                    elif is_eth and not is_wifi:
-                        ad_type = "Ethernet LAN (Wired)"
+                        ad_type = "Direct Ethernet Cable (P2P/APIPA)"
+                    elif is_eth:
+                        ad_type = "Ethernet Cable / Wired LAN"
                     else:
-                        ad_type = "Wi-Fi (Wireless LAN)"
+                        ad_type = "Local Network Interface"
 
                     adapters.append({
                         "interface": iface,
                         "ip": ip,
                         "is_up": True,
-                        "is_ethernet": (is_eth or is_cable) and not is_wifi,
+                        "is_ethernet": (is_eth or is_cable),
                         "is_cable": is_cable,
                         "type": ad_type
                     })
     except Exception:
         pass
     return adapters
+
+def has_active_ethernet_adapter() -> bool:
+    """Returns True if there is an active physical Ethernet or direct cable adapter on this machine."""
+    adapters = get_active_adapters()
+    return any(ad.get("is_cable") or ad.get("is_ethernet") for ad in adapters)
 
 def get_ethernet_ip() -> Optional[str]:
     """
@@ -445,6 +450,17 @@ class DiscoveryClient:
         """
         results = []
         seen = set()
+
+        # Instant check for direct cable static P2P default (192.168.99.1)
+        try:
+            import httpx
+            with httpx.Client(timeout=0.35) as c:
+                r = c.get("http://192.168.99.1:8000/api/v1/ping")
+                if r.status_code == 200:
+                    results.append({"service": "GPUWorkerServer", "ip": "192.168.99.1", "port": 8000, "hostname": "192.168.99.1"})
+                    seen.add("192.168.99.1")
+        except Exception:
+            pass
 
         with ThreadPoolExecutor(max_workers=2) as ex:
             f_arp = ex.submit(cls.discover_via_arp, 8000, 0.45)

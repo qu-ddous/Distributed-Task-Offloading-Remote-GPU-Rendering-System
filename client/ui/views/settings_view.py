@@ -411,14 +411,29 @@ class SettingsView(ctk.CTkScrollableFrame):
             self.entry_port.insert(0, str(found_port))
             self._on_save_clicked()
         else:
-            messagebox.showwarning(
-                "No Server Detected",
-                "Ethernet Cable / Local Network par GPUWorkerServer auto-detect nahi ho saka.\n\n"
-                "💡 Solution Steps:\n"
-                "1. Server PC par GPUWorkerServer chalaein aur top bar par '🛡️ Unblock Firewall' button dabayein ya 'FIX_FIREWALL.bat' run karein.\n"
-                "2. Windows Firewall direct cable ko block kar deti hai jab tak use unblock na kiya jaye.\n"
-                "3. Server PC ke top bar par di gayi IP (e.g. 169.254.x.x ya LAN IP) ko yahan enter karein aur 'Test & Connect' dabayein."
-            )
+            from shared.discovery import has_active_ethernet_adapter
+            has_eth = False
+            try:
+                has_eth = has_active_ethernet_adapter()
+            except Exception:
+                pass
+
+            if not has_eth:
+                messagebox.showwarning(
+                    "Physical Cable Check",
+                    "⚠️ Is Laptop par koi Active Ethernet Adapter / Cable connect nahi mili!\n\n"
+                    "• Agar aap ka laptop slim hai (jaise HP EliteBook / Dell), toh USB-to-LAN dongle ko USB port mein theek se lagayein.\n"
+                    "• Check karein ke LAN cable dono taraf firmly lagi ho.\n"
+                    "• Server PC par GPUWorkerServer.exe start karein aur 'Unblock Firewall' dabayein."
+                )
+            else:
+                messagebox.showwarning(
+                    "No Server Detected",
+                    "Ethernet Cable / Local Network par GPUWorkerServer auto-detect nahi ho saka.\n\n"
+                    "💡 Solution Steps:\n"
+                    "1. Server PC par GPUWorkerServer chalaein aur top bar par '🛡️ Unblock Firewall' button dabayein.\n"
+                    "2. Server PC ke top bar par jo 'Cable IP' ya 'Server IP' nazar aa rahi hai, woh exact IP yahan enter karein aur 'Test & Connect' dabayein."
+                )
 
     def _process_handshake(self, res: dict, host: str, port: str, token: str):
         self.btn_test.configure(state="normal", text="🔄  Test & Connect")
