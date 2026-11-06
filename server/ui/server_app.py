@@ -18,6 +18,7 @@ from server.ui.views.activity_logs_view import ActivityLogsView
 from server.ui.views.gpu_engine_view import GPUEngineView
 from server.ui.views.network_view import NetworkView
 from server.ui.views.settings_view import ServerSettingsView
+from server.ui.views.docs_view import ServerDocsView
 
 class ServerApp(ctk.CTk):
     def __init__(self, uvicorn_server_instance=None):
@@ -67,7 +68,8 @@ class ServerApp(ctk.CTk):
             "activity_logs": ActivityLogsView(self.page_container, self),
             "gpu_engine": GPUEngineView(self.page_container, self),
             "network": NetworkView(self.page_container, self),
-            "settings": ServerSettingsView(self.page_container, self)
+            "settings": ServerSettingsView(self.page_container, self),
+            "docs": ServerDocsView(self.page_container, self)
         }
 
         # Enable smooth scroll on scrollable frames
@@ -107,7 +109,8 @@ class ServerApp(ctk.CTk):
             "activity_logs": ("Activity Logs", "Detailed event logs from the worker server"),
             "gpu_engine": ("GPU & Engine", "GPU hardware status and video encoding capabilities"),
             "network": ("Network", "Network connection status and client communication"),
-            "settings": ("Settings", "Configure worker server behavior and preferences")
+            "settings": ("Settings", "Configure worker server behavior and preferences"),
+            "docs": ("Documentation & Guide", "System manual, task workflows, and cable pairing guide")
         }
         title, sub = headers.get(page_name, ("Worker Server", "Node"))
         self.topbar.set_header_text(title, sub)

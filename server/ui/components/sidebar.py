@@ -55,6 +55,7 @@ class ServerSidebar(ctk.CTkFrame):
         self._add_nav_item("gpu_engine", "🎮  GPU & Engine", "gpu_engine")
         self._add_nav_item("network", "🌐  Network", "network")
         self._add_nav_item("settings", "⚙️  Settings", "settings")
+        self._add_nav_item("docs", "📖  Docs & Guide", "docs")
 
         # Bottom Server Status Indicator
         status_card = ctk.CTkFrame(

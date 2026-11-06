@@ -25,6 +25,7 @@ from client.ui.views.render_job_view import RenderJobView
 from client.ui.views.active_job_view import ActiveJobView
 from client.ui.views.benchmarks_view import BenchmarksView
 from client.ui.views.settings_view import SettingsView
+from client.ui.views.docs_view import DocsView
 
 from client.services.config_manager import config_manager
 from client.services.network_client import NetworkClient
@@ -104,7 +105,8 @@ class App(ctk.CTk):
             "render_job": RenderJobView(self.page_container, self),
             "active_job": ActiveJobView(self.page_container, self),
             "benchmarks": BenchmarksView(self.page_container, self),
-            "settings": SettingsView(self.page_container, self)
+            "settings": SettingsView(self.page_container, self),
+            "docs": DocsView(self.page_container, self)
         }
 
         # Enable smooth scroll on scrollable frames
@@ -142,7 +144,8 @@ class App(ctk.CTk):
             "render_job": "Create New Remote Render Job",
             "active_job": "Live Job Telemetry & Logs",
             "benchmarks": "Performance & Benchmark Suite",
-            "settings": "Host Connection & Settings"
+            "settings": "Host Connection & Settings",
+            "docs": "System Documentation & User Manual"
         }
         self.topbar.set_title(titles.get(page_name, "Studio"))
 
