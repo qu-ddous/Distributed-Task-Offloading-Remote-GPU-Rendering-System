@@ -272,8 +272,13 @@ class DiscoveryClient:
             flags = 0x08000000 if hasattr(subprocess, "CREATE_NO_WINDOW") else 0
             cls._warmup_arp(timeout=0.15)
 
-            out = subprocess.check_output("arp -a", text=True, stderr=subprocess.DEVNULL, creationflags=flags)
-            candidates = re.findall(r"(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})", out)
+            out_arp = subprocess.check_output("arp -a", text=True, stderr=subprocess.DEVNULL, creationflags=flags)
+            try:
+                out_neigh = subprocess.check_output("netsh interface ip show neighbors", text=True, stderr=subprocess.DEVNULL, creationflags=flags)
+            except Exception:
+                out_neigh = ""
+
+            candidates = re.findall(r"(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})", out_arp + " " + out_neigh)
             my_ips = set(get_all_lan_ips())
 
             valid_targets = []
@@ -284,8 +289,17 @@ class DiscoveryClient:
                     continue
                 valid_targets.append(ip)
 
-            # Prioritize direct Ethernet cable APIPA addresses (169.254.x.x)
-            valid_targets.sort(key=lambda x: 0 if x.startswith("169.254.") else 1)
+            # Prioritize direct Ethernet cable APIPA addresses (169.254.x.x) and static P2P
+            def cable_prio(ip_addr: str) -> int:
+                if ip_addr.startswith("169.254."):
+                    return 0
+                if ip_addr.startswith(("192.168.99.", "192.168.50.")):
+                    return 1
+                return 2
+
+            valid_targets.sort(key=cable_prio)
+            # Cap at 20 most relevant targets to keep scan ultra-fast (<0.4s)
+            valid_targets = valid_targets[:20]
 
             def test_target(ip: str) -> Optional[Dict[str, Any]]:
                 try:
@@ -302,7 +316,7 @@ class DiscoveryClient:
                     pass
                 return None
 
-            with ThreadPoolExecutor(max_workers=15) as ex:
+            with ThreadPoolExecutor(max_workers=20) as ex:
                 futures = [ex.submit(test_target, ip) for ip in valid_targets]
                 for f in as_completed(futures):
                     res = f.result()
@@ -451,20 +465,32 @@ class DiscoveryClient:
         results = []
         seen = set()
 
-        # Instant check for direct cable static P2P default (192.168.99.1)
-        try:
-            import httpx
-            with httpx.Client(timeout=0.35) as c:
-                r = c.get("http://192.168.99.1:8000/api/v1/ping")
-                if r.status_code == 200:
-                    results.append({"service": "GPUWorkerServer", "ip": "192.168.99.1", "port": 8000, "hostname": "192.168.99.1"})
-                    seen.add("192.168.99.1")
-        except Exception:
-            pass
+        # Fast concurrent probe of known direct cable static P2P targets
+        known_p2p_targets = ["192.168.99.1", "192.168.50.1", "192.168.1.100", "192.168.0.100"]
+        def probe_known(ip_target: str):
+            try:
+                import httpx
+                with httpx.Client(timeout=0.35) as c:
+                    r = c.get(f"http://{ip_target}:8000/api/v1/ping")
+                    if r.status_code == 200:
+                        return {"service": "GPUWorkerServer", "ip": ip_target, "port": 8000, "hostname": ip_target}
+            except Exception:
+                pass
+            return None
 
-        with ThreadPoolExecutor(max_workers=2) as ex:
+        with ThreadPoolExecutor(max_workers=3) as ex:
             f_arp = ex.submit(cls.discover_via_arp, 8000, 0.45)
             f_bcast = ex.submit(cls.discover_via_broadcast, 0.75)
+            f_probes = [ex.submit(probe_known, tip) for tip in known_p2p_targets]
+
+            for fp in f_probes:
+                try:
+                    res = fp.result()
+                    if res and res["ip"] not in seen:
+                        seen.add(res["ip"])
+                        results.append(res)
+                except Exception:
+                    pass
 
             for f in [f_arp, f_bcast]:
                 try:
