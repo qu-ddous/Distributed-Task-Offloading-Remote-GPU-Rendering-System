@@ -299,6 +299,27 @@ class NetworkClient:
         """Alias for download_output_file."""
         return self.download_output_file(job_id, target_path, expected_checksum, progress_callback)
 
+    def upload_file(
+        self,
+        file_path: Path,
+        progress_callback: Optional[Callable[[float], None]] = None
+    ) -> Dict[str, Any]:
+        """Convenience method for calculating checksum and preparing file metadata."""
+        sha = self.compute_sha256(file_path, progress_callback)
+        return {"success": True, "file_path": str(file_path), "checksum": sha, "size": file_path.stat().st_size}
+
+    def create_job(
+        self,
+        file_path: Path,
+        resolution: str = "1080p",
+        bitrate: str = "8M",
+        codec: str = "h264_nvenc",
+        checksum: Optional[str] = None,
+        progress_callback: Optional[Callable[[int, int], None]] = None
+    ) -> Dict[str, Any]:
+        """Convenience wrapper delegating to submit_job."""
+        return self.submit_job(file_path, resolution, bitrate, codec, checksum, progress_callback)
+
     def cancel_job(self, job_id: str) -> bool:
         url = f"{self.base_url}/api/v1/jobs/{job_id}/cancel"
         try:

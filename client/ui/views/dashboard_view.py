@@ -100,7 +100,14 @@ class DashboardView(ctk.CTkScrollableFrame):
                 else:
                     from tkinter import messagebox
                     err = res.get("error", "Host unreachable")
-                    messagebox.showerror("Connection Failed", f"Could not connect to {net.host}:{net.port}\n\nError: {err}\n\nMake sure GPUWorkerServer.exe is running on that PC and Ethernet cable is connected.")
+                    messagebox.showerror(
+                        "Connection Failed",
+                        f"Could not connect to {net.host}:{net.port}\n\nError: {err}\n\n"
+                        "💡 AGAR CONNECTION FAIL YA TIMEOUT HO RAHA HAI:\n"
+                        "1. Server PC par top bar mein '🛡️ Unblock Firewall' dabayein (ya 'FIX_FIREWALL.bat' run karein).\n"
+                        "2. Server PC ke top bar par jo 'Cable IP' ya 'Server IP' nazar aa rahi hai, exactly wahi IP yahan dalein.\n"
+                        "3. Make sure dosre PC par 'GPUWorkerServer.exe' active run ho raha hai."
+                    )
             self.after(0, done)
         threading.Thread(target=worker, daemon=True).start()
 
