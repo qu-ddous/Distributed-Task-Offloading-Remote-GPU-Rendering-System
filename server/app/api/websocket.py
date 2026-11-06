@@ -1,6 +1,7 @@
 import logging
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 from server.app.services.job_manager import job_manager
+from server.app.services.connection_tracker import connection_tracker
 from server.app.config import settings
 
 logger = logging.getLogger("websocket")
@@ -19,6 +20,13 @@ async def websocket_job_stream(websocket: WebSocket, job_id: str, token: str = Q
 
     await websocket.accept()
     await job_manager.subscribe(job_id, websocket)
+
+    try:
+        cip = websocket.client.host if websocket.client else "127.0.0.1"
+        cport = websocket.client.port if websocket.client else 8000
+        connection_tracker.record_request(cip, cport, 256)
+    except Exception:
+        pass
 
     # Send initial snapshot
     await websocket.send_json({

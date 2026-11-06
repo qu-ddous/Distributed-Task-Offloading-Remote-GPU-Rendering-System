@@ -70,7 +70,7 @@ async def track_client_connections(request: Request, call_next):
     resp_len = response.headers.get("content-length")
     bytes_out = int(resp_len) if resp_len and resp_len.isdigit() else 0
 
-    connection_tracker.record_request(client_ip, client_port, bytes_in + bytes_out)
+    connection_tracker.record_request(client_ip, client_port, bytes_in + bytes_out + 64)
     return response
 
 # Mount endpoints

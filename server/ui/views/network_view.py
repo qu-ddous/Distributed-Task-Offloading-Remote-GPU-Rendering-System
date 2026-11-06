@@ -32,7 +32,7 @@ class NetworkView(ctk.CTkScrollableFrame):
         self.lbl_worker_ip.configure(text=self.primary_ip)
         if hasattr(self, "adapters_container"):
             self._render_adapter_cards()
-        self._refresh_network_status(reschedule=False)
+        self._refresh_network_status(reschedule=True)
 
     def _copy_ip_to_clipboard(self):
         try:
@@ -339,7 +339,14 @@ class NetworkView(ctk.CTkScrollableFrame):
         try:
             if not self.winfo_exists():
                 return
+        except Exception:
+            return
 
+        active_cnt = 0
+        speed_kb = 0.0
+        conns = []
+
+        try:
             tot_bytes = connection_tracker.get_total_transferred_bytes()
             conns = connection_tracker.get_connections_list()
             active_cnt = sum(1 for c in conns if c.get("is_active", False))
@@ -347,7 +354,6 @@ class NetworkView(ctk.CTkScrollableFrame):
             dt = max(now - self._last_time, 0.1)
 
             # Compute real speed
-            speed_kb = 0.0
             if self._last_bytes > 0 and tot_bytes >= self._last_bytes:
                 speed_kb = (tot_bytes - self._last_bytes) / 1024.0 / dt
             self._last_bytes = tot_bytes
@@ -358,19 +364,22 @@ class NetworkView(ctk.CTkScrollableFrame):
                 self.lbl_active_clients.configure(text=f"{active_cnt} Client{'s' if active_cnt > 1 else ''}", text_color=ACCENT_GREEN)
                 self.lbl_active_clients_sub.configure(text="Communicating with daemon")
                 self.lbl_lat_val.configure(text=f"{active_cnt} Active Stream{'s' if active_cnt > 1 else ''}", text_color=ACCENT_GREEN)
-                self.graph_lat.add_point(min(100.0, active_cnt * 25.0))
+                if hasattr(self, "graph_lat"):
+                    self.graph_lat.add_point(min(100.0, active_cnt * 25.0))
             else:
                 self.lbl_active_clients.configure(text="0 Clients", text_color=TEXT_PRIMARY)
                 self.lbl_active_clients_sub.configure(text="Awaiting client connection")
                 self.lbl_lat_val.configure(text="Idle (Listening)", text_color=TEXT_MUTED)
-                self.graph_lat.add_point(0.0)
+                if hasattr(self, "graph_lat"):
+                    self.graph_lat.add_point(0.0)
 
             # 2. Update throughput & graph
             if speed_kb >= 1024:
                 self.lbl_thr_val.configure(text=f"{speed_kb / 1024.0:.1f} MB/s")
             else:
                 self.lbl_thr_val.configure(text=f"{speed_kb:.1f} KB/s")
-            self.graph_thr.add_point(min(100.0, speed_kb / 10.0))
+            if hasattr(self, "graph_thr"):
+                self.graph_thr.add_point(min(100.0, speed_kb / 10.0))
 
             # 3. Update total transfers card
             if tot_bytes >= 1024 * 1024 * 1024:
@@ -381,16 +390,17 @@ class NetworkView(ctk.CTkScrollableFrame):
                 self.lbl_transfers_val.configure(text=f"{tot_bytes / 1024:.0f} KB")
             else:
                 self.lbl_transfers_val.configure(text=f"{tot_bytes} B")
+        except Exception:
+            pass
 
-            # 4. Render connections table
+        # 4. Render connections table safely
+        try:
             self._render_connection_rows(conns)
-
         except Exception:
             pass
 
         if reschedule:
-            # 1000ms if active clients or transfers, 2500ms if idle
-            delay = 1000 if (active_cnt > 0 or speed_kb > 0) else 2500
+            delay = 1200 if (active_cnt > 0 or speed_kb > 0) else 1800
             if self._refresh_timer:
                 try:
                     self.after_cancel(self._refresh_timer)

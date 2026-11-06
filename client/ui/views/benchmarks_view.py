@@ -445,31 +445,32 @@ class BenchmarksView(ctk.CTkScrollableFrame):
             t_local_cpu = max(0.01, round(time.perf_counter() - t0_cpu, 2))
             self._log_bench(f"✔ Local Laptop CPU Render Time: {t_local_cpu:.2f} seconds")
 
-            # Step 3: Measure LAN Upload Time
+            # Step 3: Measure LAN Upload & Remote Job Submission Time
             self._log_bench(f"[3/5] Uploading payload to Remote Server over LAN wire...")
             self._update_bench_prog(0.55, "Uploading payload to server...")
             checksum = net.compute_sha256(src_file)
             t0_up = time.perf_counter()
-            up_res = net.upload_file(src_file)
-            if not up_res.get("success"):
-                raise RuntimeError(f"Upload failed: {up_res.get('error')}")
+            sub_res = net.submit_job(
+                input_file=src_file,
+                checksum=checksum,
+                resolution="720p",
+                bitrate="2M",
+                preset="p4",
+                output_filename=f"bench_{src_file.name}",
+                allow_cpu_fallback=True
+            )
+            if not sub_res.get("success"):
+                raise RuntimeError(f"Submission failed: {sub_res.get('error')}")
             t_up = max(0.01, round(time.perf_counter() - t0_up, 2))
             self._log_bench(f"✔ LAN Upload Time: {t_up:.2f} seconds")
 
             # Step 4: Measure Remote GPU Render Time
             self._log_bench("[4/5] Executing Remote NVIDIA NVENC GPU transcode (720p, p4 preset)...")
             self._update_bench_prog(0.75, "Remote GPU encoding...")
-            job_res = net.create_job(
-                file_name=src_file.name,
-                checksum=checksum,
-                resolution="720p",
-                preset="p4",
-                bitrate="2M",
-                allow_cpu=True
-            )
-            if not job_res.get("success"):
-                raise RuntimeError(f"Failed to submit remote job: {job_res.get('error')}")
-            job_id = job_res["job_id"]
+            job_obj = sub_res.get("job", {})
+            job_id = job_obj.get("job_id")
+            if not job_id:
+                raise RuntimeError("Server did not return a valid job_id.")
 
             t0_rend = time.perf_counter()
             while True:
@@ -478,11 +479,11 @@ class BenchmarksView(ctk.CTkScrollableFrame):
                 if not stat.get("success"):
                     raise RuntimeError(f"Failed polling remote job: {stat.get('error')}")
                 j_data = stat["data"]
-                s = j_data.get("status")
+                s = str(j_data.get("status", "")).upper()
                 if s == "COMPLETED":
                     break
                 elif s in ("FAILED", "CANCELLED"):
-                    raise RuntimeError(f"Remote job {s}: {j_data.get('error_message')}")
+                    raise RuntimeError(f"Remote job {s}: {j_data.get('error_message', 'Execution error')}")
             t_render = max(0.01, round(time.perf_counter() - t0_rend, 2))
             self._log_bench(f"✔ Remote GPU Render Time: {t_render:.2f} seconds")
 
@@ -490,7 +491,7 @@ class BenchmarksView(ctk.CTkScrollableFrame):
             self._log_bench("[5/5] Downloading encoded stream from Remote Server...")
             self._update_bench_prog(0.9, "Downloading output stream...")
             t0_dl = time.perf_counter()
-            dl_res = net.download_file(job_id, remote_out)
+            dl_res = net.download_output_file(job_id, remote_out)
             if not dl_res.get("success"):
                 raise RuntimeError(f"Download failed: {dl_res.get('error')}")
             t_dl = max(0.01, round(time.perf_counter() - t0_dl, 2))

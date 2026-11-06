@@ -272,6 +272,33 @@ class NetworkClient:
                 target_path.unlink(missing_ok=True)
             return {"success": False, "error": f"Download interrupted: {str(e)}"}
 
+    def get_job_status(self, job_id: str) -> Dict[str, Any]:
+        """
+        Polls the status of a specific job by ID.
+        """
+        url = f"{self.base_url}/api/v1/jobs/{job_id}"
+        try:
+            with httpx.Client(timeout=10.0) as client:
+                resp = client.get(url, headers=self.get_headers())
+                if resp.status_code == 200:
+                    return {"success": True, "data": resp.json()}
+                elif resp.status_code == 404:
+                    return {"success": False, "error": "Job not found on server."}
+                else:
+                    return {"success": False, "error": f"HTTP {resp.status_code}: {resp.text}"}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def download_file(
+        self,
+        job_id: str,
+        target_path: Path,
+        expected_checksum: Optional[str] = None,
+        progress_callback: Optional[Callable[[int, int], None]] = None
+    ) -> Dict[str, Any]:
+        """Alias for download_output_file."""
+        return self.download_output_file(job_id, target_path, expected_checksum, progress_callback)
+
     def cancel_job(self, job_id: str) -> bool:
         url = f"{self.base_url}/api/v1/jobs/{job_id}/cancel"
         try:

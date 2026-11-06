@@ -39,7 +39,7 @@ class ClientConnectionTracker:
                 conn["requests_count"] += 1
                 conn["bytes_transferred"] += bytes_count
 
-    def get_active_clients_count(self, timeout_sec: float = 15.0) -> int:
+    def get_active_clients_count(self, timeout_sec: float = 30.0) -> int:
         now = time.time()
         with self._lock:
             return sum(1 for c in self._connections.values() if (now - c["last_seen"]) <= timeout_sec)
@@ -48,7 +48,7 @@ class ClientConnectionTracker:
         with self._lock:
             return self._total_bytes_transferred
 
-    def get_connections_list(self, timeout_sec: float = 15.0) -> List[Dict[str, Any]]:
+    def get_connections_list(self, timeout_sec: float = 30.0) -> List[Dict[str, Any]]:
         now = time.time()
         with self._lock:
             result = []

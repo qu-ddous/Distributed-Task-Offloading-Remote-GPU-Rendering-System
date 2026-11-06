@@ -1,21 +1,29 @@
 import time
 import asyncio
 from datetime import datetime, timezone
-from fastapi import APIRouter, Header, HTTPException, status
+from fastapi import APIRouter, Header, HTTPException, Request, status
 from shared.schemas import HealthResponse, LatencyPingResponse, FFmpegInfo, HardwareInfo, ServerLimits
 from server.app.services.system_service import SystemService
 from server.app.services.job_manager import job_manager
+from server.app.services.connection_tracker import connection_tracker
 from server.app.config import settings
 
 router = APIRouter()
 
 @router.get("/health", response_model=HealthResponse)
-async def health_check(x_api_token: str = Header(None)):
+async def health_check(request: Request, x_api_token: str = Header(None)):
     if settings.API_TOKEN and x_api_token != settings.API_TOKEN:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or missing X-API-Token header."
         )
+
+    try:
+        cip = request.client.host if request.client else "127.0.0.1"
+        cport = request.client.port if request.client else 8000
+        connection_tracker.record_request(cip, cport, 128)
+    except Exception:
+        pass
 
     is_ff_avail, ff_ver, is_nvenc, encoders = await asyncio.to_thread(SystemService.check_ffmpeg_capabilities)
     hw_data = await asyncio.to_thread(SystemService.get_hardware_telemetry, str(settings.storage_path))
@@ -55,7 +63,13 @@ async def health_check(x_api_token: str = Header(None)):
     )
 
 @router.get("/ping", response_model=LatencyPingResponse)
-async def ping():
+async def ping(request: Request):
+    try:
+        cip = request.client.host if request.client else "127.0.0.1"
+        cport = request.client.port if request.client else 8000
+        connection_tracker.record_request(cip, cport, 64)
+    except Exception:
+        pass
     return LatencyPingResponse(
         pong=True,
         timestamp=time.time()
