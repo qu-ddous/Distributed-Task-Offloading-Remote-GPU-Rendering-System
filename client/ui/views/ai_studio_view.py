@@ -31,6 +31,7 @@ class AIStudioView(ctk.CTkScrollableFrame):
         # Local state
         self.selected_dataset_path: Optional[str] = None
         self.selected_lens_image_path: Optional[str] = None
+        self.selected_python_file: Optional[Path] = None
         self.is_monitoring_training: bool = False
         self._lens_image_obj = None
 
@@ -40,10 +41,12 @@ class AIStudioView(ctk.CTkScrollableFrame):
         # Tab Containers
         self.tab_training_frame = ctk.CTkFrame(self, fg_color="transparent")
         self.tab_lens_frame = ctk.CTkFrame(self, fg_color="transparent")
+        self.tab_custom_python_frame = ctk.CTkFrame(self, fg_color="transparent")
         self.tab_benchmark_frame = ctk.CTkFrame(self, fg_color="transparent")
 
         self._build_training_tab()
         self._build_lens_tab()
+        self._build_custom_python_tab()
         self._build_benchmark_tab()
 
         self._switch_sub_tab("training")
@@ -124,7 +127,7 @@ class AIStudioView(ctk.CTkScrollableFrame):
 
         self.btn_sub_train = ctk.CTkButton(
             inner,
-            text="🚀  Remote CNN Training (100k Dataset)",
+            text="🚀  Remote CNN Training",
             font=ctk.CTkFont(size=12, weight="bold"),
             fg_color=ACCENT_BLUE,
             text_color="#FFFFFF",
@@ -132,11 +135,11 @@ class AIStudioView(ctk.CTkScrollableFrame):
             height=38,
             command=lambda: self._switch_sub_tab("training")
         )
-        self.btn_sub_train.pack(side="left", expand=True, fill="x", padx=4)
+        self.btn_sub_train.pack(side="left", expand=True, fill="x", padx=3)
 
         self.btn_sub_lens = ctk.CTkButton(
             inner,
-            text="🔍  Google Lens • Visual Classifier",
+            text="🔍  Google Lens",
             font=ctk.CTkFont(size=12, weight="bold"),
             fg_color="transparent",
             text_color=TEXT_SECONDARY,
@@ -145,11 +148,24 @@ class AIStudioView(ctk.CTkScrollableFrame):
             height=38,
             command=lambda: self._switch_sub_tab("lens")
         )
-        self.btn_sub_lens.pack(side="left", expand=True, fill="x", padx=4)
+        self.btn_sub_lens.pack(side="left", expand=True, fill="x", padx=3)
+
+        self.btn_sub_python = ctk.CTkButton(
+            inner,
+            text="🧠  Custom Python / AI Model",
+            font=ctk.CTkFont(size=12, weight="bold"),
+            fg_color="transparent",
+            text_color=TEXT_SECONDARY,
+            hover_color=HOVER_COLOR,
+            corner_radius=10,
+            height=38,
+            command=lambda: self._switch_sub_tab("custom_python")
+        )
+        self.btn_sub_python.pack(side="left", expand=True, fill="x", padx=3)
 
         self.btn_sub_bench = ctk.CTkButton(
             inner,
-            text="⚖️  CPU vs GPU Benchmark Suite",
+            text="⚖️  CPU vs GPU Suite",
             font=ctk.CTkFont(size=12, weight="bold"),
             fg_color="transparent",
             text_color=TEXT_SECONDARY,
@@ -158,18 +174,20 @@ class AIStudioView(ctk.CTkScrollableFrame):
             height=38,
             command=lambda: self._switch_sub_tab("benchmark")
         )
-        self.btn_sub_bench.pack(side="left", expand=True, fill="x", padx=4)
+        self.btn_sub_bench.pack(side="left", expand=True, fill="x", padx=3)
 
     def _switch_sub_tab(self, tab_name: str):
         self.current_sub_tab = tab_name
         self.tab_training_frame.pack_forget()
         self.tab_lens_frame.pack_forget()
+        self.tab_custom_python_frame.pack_forget()
         self.tab_benchmark_frame.pack_forget()
 
         # Update button highlights
         buttons = [
             ("training", self.btn_sub_train),
             ("lens", self.btn_sub_lens),
+            ("custom_python", self.btn_sub_python),
             ("benchmark", self.btn_sub_bench)
         ]
         for name, btn in buttons:
@@ -182,6 +200,8 @@ class AIStudioView(ctk.CTkScrollableFrame):
             self.tab_training_frame.pack(fill="x", padx=10, pady=0)
         elif tab_name == "lens":
             self.tab_lens_frame.pack(fill="x", padx=10, pady=0)
+        elif tab_name == "custom_python":
+            self.tab_custom_python_frame.pack(fill="x", padx=10, pady=0)
         elif tab_name == "benchmark":
             self.tab_benchmark_frame.pack(fill="x", padx=10, pady=0)
 
@@ -904,3 +924,168 @@ class AIStudioView(ctk.CTkScrollableFrame):
             fg_color="#D1FAE5",
             text_color=ACCENT_GREEN
         )
+
+    # ==========================================
+    # Tab 4: Custom Python / AI Model Offloader
+    # ==========================================
+
+    def _build_custom_python_tab(self):
+        # 1. Script Selection Card
+        card1 = ctk.CTkFrame(self.tab_custom_python_frame, fg_color=BG_CARD, corner_radius=18, border_width=1, border_color=BORDER_COLOR)
+        card1.pack(fill="x", pady=(0, 16))
+
+        inner1 = ctk.CTkFrame(card1, fg_color="transparent")
+        inner1.pack(fill="x", padx=22, pady=18)
+
+        ctk.CTkLabel(inner1, text="1. Select Python Script or AI Model to Offload", font=ctk.CTkFont(size=15, weight="bold"), text_color=TEXT_PRIMARY).pack(anchor="w")
+        ctk.CTkLabel(inner1, text="Offload your custom AI training scripts (e.g. train.py, detect.py) to run at 100% load on the server GPU/CPU.", font=ctk.CTkFont(size=12), text_color=TEXT_MUTED).pack(anchor="w", pady=(2, 12))
+
+        row = ctk.CTkFrame(inner1, fg_color="transparent")
+        row.pack(fill="x")
+        row.grid_columnconfigure(0, weight=0)
+        row.grid_columnconfigure(1, weight=1)
+
+        self.btn_select_py_file = ctk.CTkButton(
+            row,
+            text="🐍  Browse Python (.py)...",
+            command=self._on_browse_python_clicked,
+            fg_color=ACCENT_BLUE,
+            hover_color=ACCENT_BLUE_HOVER,
+            height=44,
+            width=220,
+            corner_radius=10,
+            font=ctk.CTkFont(size=13, weight="bold")
+        )
+        self.btn_select_py_file.grid(row=0, column=0, sticky="w", padx=(0, 16))
+
+        stats_box = ctk.CTkFrame(row, fg_color=BG_CARD_ALT, corner_radius=12)
+        stats_box.grid(row=0, column=1, sticky="nsew")
+
+        self.lbl_py_filename = ctk.CTkLabel(
+            stats_box,
+            text="No script selected yet",
+            text_color=TEXT_MUTED,
+            font=ctk.CTkFont(size=13, weight="bold")
+        )
+        self.lbl_py_filename.pack(anchor="w", padx=16, pady=(10, 2))
+
+        self.lbl_py_details = ctk.CTkLabel(
+            stats_box,
+            text="Click Browse to select your Python AI script (.py or .pyw)",
+            text_color=TEXT_DIM,
+            font=ctk.CTkFont(size=11)
+        )
+        self.lbl_py_details.pack(anchor="w", padx=16, pady=(0, 10))
+
+        # 2. Remote Compute & Profile Card
+        card2 = ctk.CTkFrame(self.tab_custom_python_frame, fg_color=BG_CARD, corner_radius=18, border_width=1, border_color=BORDER_COLOR)
+        card2.pack(fill="x", pady=(0, 16))
+
+        inner2 = ctk.CTkFrame(card2, fg_color="transparent")
+        inner2.pack(fill="x", padx=22, pady=18)
+
+        ctk.CTkLabel(inner2, text="2. Remote Hardware & Compute Profile", font=ctk.CTkFont(size=15, weight="bold"), text_color=TEXT_PRIMARY).pack(anchor="w", pady=(0, 12))
+
+        grid = ctk.CTkFrame(inner2, fg_color="transparent")
+        grid.pack(fill="x")
+        grid.grid_columnconfigure((0, 1), weight=1)
+
+        # Acceleration Profile
+        c1 = ctk.CTkFrame(grid, fg_color="transparent")
+        c1.grid(row=0, column=0, sticky="ew", padx=(0, 10))
+        ctk.CTkLabel(c1, text="Hardware Target:", font=ctk.CTkFont(size=12, weight="bold"), text_color=TEXT_SECONDARY).pack(anchor="w", pady=(0, 4))
+        self.opt_py_accel = ctk.CTkOptionMenu(
+            c1,
+            values=["Auto-Detect (CUDA GPU / PyTorch)", "Dedicated NVIDIA GPU Preferred", "Server Multi-Core CPU High-Performance"],
+            fg_color="#F1F5F9",
+            button_color="#E2E8F0",
+            button_hover_color="#CBD5E1",
+            text_color=TEXT_PRIMARY,
+            corner_radius=10,
+            height=38
+        )
+        self.opt_py_accel.set("Auto-Detect (CUDA GPU / PyTorch)")
+        self.opt_py_accel.pack(fill="x")
+
+        # Output Log Filename
+        c2 = ctk.CTkFrame(grid, fg_color="transparent")
+        c2.grid(row=0, column=1, sticky="ew", padx=(10, 0))
+        ctk.CTkLabel(c2, text="Output Artifact / Log Name:", font=ctk.CTkFont(size=12, weight="bold"), text_color=TEXT_SECONDARY).pack(anchor="w", pady=(0, 4))
+        self.entry_py_out_name = ctk.CTkEntry(
+            c2,
+            placeholder_text="script_execution.log",
+            fg_color="#F1F5F9",
+            border_color=BORDER_COLOR,
+            text_color=TEXT_PRIMARY,
+            corner_radius=10,
+            height=38
+        )
+        self.entry_py_out_name.insert(0, "script_execution.log")
+        self.entry_py_out_name.pack(fill="x")
+
+        # 3. Action Card
+        card3 = ctk.CTkFrame(self.tab_custom_python_frame, fg_color=BG_CARD, corner_radius=18, border_width=1, border_color=BORDER_COLOR)
+        card3.pack(fill="x", pady=(0, 20))
+
+        inner3 = ctk.CTkFrame(card3, fg_color="transparent")
+        inner3.pack(fill="x", padx=22, pady=18)
+
+        self.btn_submit_py = ctk.CTkButton(
+            inner3,
+            text="🧠  Submit & Run Python Model on Server Hardware",
+            font=ctk.CTkFont(size=14, weight="bold"),
+            fg_color=ACCENT_GREEN,
+            hover_color=ACCENT_GREEN_HOVER,
+            text_color="#FFFFFF",
+            corner_radius=12,
+            height=46,
+            command=self._on_submit_custom_python_clicked
+        )
+        self.btn_submit_py.pack(fill="x")
+
+    def _on_browse_python_clicked(self):
+        f = filedialog.askopenfilename(
+            title="Select Python Script or AI Model to Offload",
+            filetypes=[("Python Files", "*.py *.pyw")]
+        )
+        if f:
+            self.selected_python_file = Path(f)
+            size_mb = self.selected_python_file.stat().st_size / (1024 * 1024)
+            size_str = f"{size_mb:.2f} MB" if size_mb >= 1.0 else f"{self.selected_python_file.stat().st_size / 1024:.1f} KB"
+            self.lbl_py_filename.configure(text=self.selected_python_file.name, text_color=TEXT_PRIMARY)
+            self.lbl_py_details.configure(text=f"Size: {size_str} • Path: {self.selected_python_file.parent}")
+            stem = self.selected_python_file.stem
+            self.entry_py_out_name.delete(0, "end")
+            self.entry_py_out_name.insert(0, f"{stem}_execution.log")
+
+    def _on_submit_custom_python_clicked(self):
+        if not self.app.is_connected:
+            from tkinter import messagebox
+            messagebox.showwarning("Connection Required", "Please connect to the worker server first (Host & Settings or Dashboard).")
+            self.app.navigate_to("dashboard")
+            return
+
+        if not self.selected_python_file or not self.selected_python_file.exists():
+            from tkinter import messagebox
+            messagebox.showwarning("File Missing", "Please select a valid Python script (.py) to execute on the server.")
+            return
+
+        from client.services.network_client import NetworkClient
+        net = NetworkClient()
+        checksum = net.compute_sha256(self.selected_python_file)
+        out_name = self.entry_py_out_name.get().strip() or f"{self.selected_python_file.stem}_execution.log"
+        out_dir = Path(self.app.config_data.get("output_dir", str(Path.home() / "Downloads")))
+
+        job_params = {
+            "input_file": self.selected_python_file,
+            "checksum": checksum,
+            "resolution": "Original",
+            "bitrate": "5M",
+            "preset": "p4",
+            "output_name": out_name,
+            "output_dir": out_dir,
+            "allow_cpu": True,
+            "task_mode": "python"
+        }
+
+        self.app.start_render_job(job_params)

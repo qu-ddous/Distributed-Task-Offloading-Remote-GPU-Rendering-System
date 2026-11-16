@@ -160,13 +160,20 @@ DOCS_DATA = {
                      "• Step 5: Click 'Submit & Train on Remote GPU'. Watch live epoch losses, accuracy curves, and GPU VRAM consumption stream in real-time!"),
 
                     ("🔍 2. Google Lens • Visual Image Classifier & Tester",
-                     "• Step 1: In AI Studio, switch to the 'Google Lens • Visual Classifier' sub-tab.\n"
+                     "• Step 1: In AI Studio, switch to the 'Google Lens' sub-tab.\n"
                      "• Step 2: Click 'Browse Local Image' or click any quick sample chip (e.g. 🐱 Cat, 🚗 Car, 🐶 Dog, ✈️ Plane).\n"
                      "• Step 3: Click 'Scan with Google Lens (Remote GPU)'.\n"
                      "• Step 4: Within 15-20 milliseconds, the remote GPU returns the predicted category, confidence percentage, top-3 candidates, and execution latency!"),
 
-                    ("⚖️ 3. CPU vs GPU Benchmark Suite (Assignment Evaluation)",
-                     "• Step 1: Switch to 'CPU vs GPU Benchmark Suite' sub-tab.\n"
+                    ("🧠 3. Custom Python / AI Model Offloader (Server Compute)",
+                     "• Step 1: In AI Studio, select the '🧠 Custom Python / AI Model' sub-tab.\n"
+                     "• Step 2: Browse your custom Python AI script (e.g. train.py, detect.py, evaluate.py).\n"
+                     "• Step 3: Choose target acceleration profile (Auto-Detect CUDA / Dedicated NVIDIA GPU).\n"
+                     "• Step 4: Click 'Submit & Run Python Model on Server Hardware'.\n"
+                     "• Step 5: Studio switches to the Live Monitor, streaming your PyTorch CUDA epoch progress, loss values, and terminal stdout/stderr live! Output artifacts and logs save directly to your Downloads folder."),
+
+                    ("⚖️ 4. CPU vs GPU Benchmark Suite (Assignment Evaluation)",
+                     "• Step 1: Switch to 'CPU vs GPU Suite' sub-tab.\n"
                      "• Step 2: Click 'Execute Comparative Hardware Benchmark'.\n"
                      "• Step 3: Evaluates identical CNN tensor workloads on Host CPU vs Remote NVIDIA GPU, displaying throughput (img/s) and speedup multiplier (e.g. '12.8x Faster on GPU!').")
                 ]
@@ -343,13 +350,20 @@ DOCS_DATA = {
                      "• Step 5: 'Submit & Train on Remote GPU' dabayein. Server GPU par real-time training shuru hogi aur live loss, accuracy aur VRAM graphs screen par aane lagenge!"),
 
                     ("🔍 2. Google Lens • Visual Image Classifier",
-                     "• Step 1: AI Studio ke andar doosra tab 'Google Lens • Visual Classifier' select karein.\n"
+                     "• Step 1: AI Studio ke andar doosra tab 'Google Lens' select karein.\n"
                      "• Step 2: Koi bhi tasveer browse karein ya diye gaye quick sample chips (Cat, Car, Dog, Plane) par click karein.\n"
                      "• Step 3: 'Scan with Google Lens (Remote GPU)' button dabayein.\n"
                      "• Step 4: Sirf 15-20 milliseconds mein remote GPU tasveer ko classify karega aur confidence percentage aur top-3 predictions screen par dikha dega!"),
 
-                    ("⚖️ 3. CPU vs GPU Benchmark Suite (Assignment Evaluation)",
-                     "• Step 1: 'CPU vs GPU Benchmark Suite' sub-tab par click karein.\n"
+                    ("🧠 3. Custom Python / AI Model Offloader (Server Compute)",
+                     "• Step 1: AI Studio ke andar '🧠 Custom Python / AI Model' sub-tab select karein.\n"
+                     "• Step 2: Apni custom Python deep learning script (e.g. train.py, detect.py) select karein.\n"
+                     "• Step 3: Acceleration profile (Auto-Detect CUDA / Dedicated NVIDIA GPU) choose karein.\n"
+                     "• Step 4: 'Submit & Run Python Model on Server Hardware' dabayein.\n"
+                     "• Step 5: Screen foran Live Monitor par chali jayegi jahan server GPU/CPU par script chalne ke live logs, prints aur loss values stream honge. Kaam khatam hote hi execution log aur output files Downloads folder mein download ho jayengi!"),
+
+                    ("⚖️ 4. CPU vs GPU Benchmark Suite (Assignment Evaluation)",
+                     "• Step 1: 'CPU vs GPU Suite' sub-tab par click karein.\n"
                      "• Step 2: 'Execute Comparative Hardware Benchmark' dabayein.\n"
                      "• Step 3: Yeh tool Laptop CPU aur Server GPU ki training speed compare karke speedup factor (e.g. '12.8x Faster on GPU!') aur detailed report generate karega.")
                 ]
