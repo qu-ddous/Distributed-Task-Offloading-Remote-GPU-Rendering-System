@@ -39,9 +39,13 @@ hiddenimports = [
     'server.app.main',
     'server.app.server_state',
     'server.app.services.connection_tracker',
+    'server.app.api.ai',
+    'server.app.services.ai_service',
     'server.ui',
     'server.ui.server_app',
     'shared',
+    'shared.ai_engine',
+    'torch',
 ]
 
 a = Analysis(
@@ -53,7 +57,7 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=['pytest'],
+    excludes=['pytest', 'scipy', 'matplotlib', 'pandas', 'tensorflow', 'onnxruntime', 'tkinter.test'],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
     cipher=block_cipher,

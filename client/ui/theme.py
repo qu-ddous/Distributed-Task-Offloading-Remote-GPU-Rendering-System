@@ -12,6 +12,7 @@ BG_CARD_ALT = "#F5F8FC"    # Tinted clay container
 BG_INPUT = "#FFFFFF"       # Bright input surface
 BORDER_COLOR = "#D5DFEC"   # Subtle clay rim border
 BORDER_HIGHLIGHT = "#FFFFFF"# Inner light glow rim
+HOVER_COLOR = "#E2E8F0"     # Soft clay button hover surface
 
 # Vibrant Claymorphism Accents (Vivid, playful, shiny)
 ACCENT_BLUE = "#3B82F6"          # Electric Blue

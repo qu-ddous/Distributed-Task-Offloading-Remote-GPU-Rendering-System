@@ -20,6 +20,8 @@ import customtkinter as ctk
 from client.ui.theme import *
 from client.services.network_client import NetworkClient
 
+HOVER_COLOR = "#E2E8F0"
+
 class AIStudioView(ctk.CTkScrollableFrame):
     def __init__(self, master, app):
         super().__init__(master, fg_color="transparent", corner_radius=0)

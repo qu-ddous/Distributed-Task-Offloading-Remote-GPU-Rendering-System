@@ -23,6 +23,9 @@ hiddenimports = [
     'pydantic_settings',
     'psutil',
     'shared',
+    'shared.schemas',
+    'shared.docs_content',
+    'client.ui.views.ai_studio_view',
 ]
 
 a = Analysis(
@@ -34,7 +37,7 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=['pytest', 'tkinter.test'],
+    excludes=['pytest', 'tkinter.test', 'torch', 'scipy', 'matplotlib', 'pandas', 'tensorflow', 'onnxruntime'],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
     cipher=block_cipher,

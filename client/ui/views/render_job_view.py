@@ -69,19 +69,6 @@ class RenderJobView(ctk.CTkScrollableFrame):
         )
         self.btn_mode_video.pack(side="left", padx=(0, 6))
 
-        self.btn_mode_python = ctk.CTkButton(
-            box,
-            text="🧠  Python / AI Model (Server Compute)",
-            font=ctk.CTkFont(size=12, weight="bold"),
-            height=32,
-            corner_radius=8,
-            fg_color=BG_CARD_ALT,
-            text_color=TEXT_SECONDARY,
-            hover_color="#DBEAFE",
-            command=lambda: self._set_task_mode("python")
-        )
-        self.btn_mode_python.pack(side="left", padx=(0, 6))
-
         self.btn_mode_batch = ctk.CTkButton(
             box,
             text="⚡  Batch / Shell Script",
@@ -113,7 +100,6 @@ class RenderJobView(ctk.CTkScrollableFrame):
         # Reset button styles
         buttons = [
             ("video", self.btn_mode_video),
-            ("python", self.btn_mode_python),
             ("batch", self.btn_mode_batch),
             ("universal", self.btn_mode_universal)
         ]
