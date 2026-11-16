@@ -360,3 +360,106 @@ class NetworkClient:
                     "error": err_text,
                     "message": err_text
                 })
+
+    # ==========================================
+    # GPUShare AI Training & Google Lens Methods
+    # ==========================================
+
+    def get_ai_status(self, timeout: float = 5.0) -> Dict[str, Any]:
+        """Queries server for AI hardware capabilities and training state"""
+        url = f"{self.base_url}/api/v1/ai/status"
+        try:
+            with httpx.Client(timeout=timeout) as client:
+                resp = client.get(url, headers=self.get_headers())
+                if resp.status_code == 200:
+                    return resp.json()
+                return {"cuda_available": False, "is_training": False, "error": f"Status {resp.status_code}"}
+        except Exception as e:
+            return {"cuda_available": False, "is_training": False, "error": str(e)}
+
+    def start_ai_training(
+        self,
+        model_arch: str = "resnet",
+        epochs: int = 5,
+        batch_size: int = 64,
+        learning_rate: float = 0.001,
+        optimizer: str = "adam",
+        use_gpu: bool = True,
+        dataset_path: Optional[str] = None,
+        timeout: float = 8.0
+    ) -> Dict[str, Any]:
+        """Dispatches CNN training request to remote GPU server"""
+        url = f"{self.base_url}/api/v1/ai/train"
+        data = {
+            "model_arch": model_arch,
+            "epochs": str(epochs),
+            "batch_size": str(batch_size),
+            "learning_rate": str(learning_rate),
+            "optimizer": optimizer,
+            "use_gpu": "true" if use_gpu else "false"
+        }
+        if dataset_path:
+            data["dataset_path"] = dataset_path
+
+        try:
+            with httpx.Client(timeout=timeout) as client:
+                resp = client.post(url, data=data, headers=self.get_headers())
+                if resp.status_code in [200, 201]:
+                    return resp.json()
+                return {"success": False, "error": resp.text}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def cancel_ai_training(self, timeout: float = 5.0) -> bool:
+        """Signals the remote server to cancel active training"""
+        url = f"{self.base_url}/api/v1/ai/cancel"
+        try:
+            with httpx.Client(timeout=timeout) as client:
+                resp = client.post(url, headers=self.get_headers())
+                return resp.status_code == 200
+        except Exception:
+            return False
+
+    def get_ai_progress(self, timeout: float = 4.0) -> Dict[str, Any]:
+        """Polls current training telemetry from server"""
+        url = f"{self.base_url}/api/v1/ai/progress"
+        try:
+            with httpx.Client(timeout=timeout) as client:
+                resp = client.get(url, headers=self.get_headers())
+                if resp.status_code == 200:
+                    return resp.json()
+                return {"is_training": False, "stats": {}}
+        except Exception:
+            return {"is_training": False, "stats": {}}
+
+    def predict_image_lens(self, image_path: str, timeout: float = 20.0) -> Dict[str, Any]:
+        """
+        Uploads image to server for Google Lens neural vision inference on remote GPU.
+        """
+        url = f"{self.base_url}/api/v1/ai/predict"
+        p = Path(image_path)
+        if not p.exists():
+            return {"success": False, "error": "Selected image file does not exist."}
+
+        try:
+            with open(p, "rb") as f:
+                files = {"file": (p.name, f, "image/jpeg")}
+                with httpx.Client(timeout=timeout) as client:
+                    resp = client.post(url, files=files, headers=self.get_headers())
+                    if resp.status_code == 200:
+                        return resp.json()
+                    return {"success": False, "error": f"Server returned error {resp.status_code}: {resp.text}"}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def run_ai_hardware_benchmark(self, timeout: float = 40.0) -> Dict[str, Any]:
+        """Executes comparative CPU vs GPU speed test on server"""
+        url = f"{self.base_url}/api/v1/ai/benchmark"
+        try:
+            with httpx.Client(timeout=timeout) as client:
+                resp = client.post(url, headers=self.get_headers())
+                if resp.status_code == 200:
+                    return resp.json()
+                return {"error": f"Benchmark failed with status {resp.status_code}"}
+        except Exception as e:
+            return {"error": str(e)}

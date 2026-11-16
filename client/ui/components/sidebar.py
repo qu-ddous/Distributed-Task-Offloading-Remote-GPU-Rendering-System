@@ -69,6 +69,7 @@ class SidebarNavigation(ctk.CTkFrame):
 
         self._add_nav_item("benchmarks", "⚡  Benchmarks", "benchmarks")
         self._add_nav_item("settings", "⚙️  Host & Settings", "settings")
+        self._add_nav_item("ai_studio", "🧠  AI Studio & Lens", "ai_studio")
         self._add_nav_item("docs", "📖  Docs & Guide", "docs")
 
         # Bottom System Info Clay Card

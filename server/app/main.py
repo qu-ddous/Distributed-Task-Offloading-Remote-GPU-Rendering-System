@@ -15,6 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from server.app.api.health import router as health_router
 from server.app.api.jobs import router as jobs_router
 from server.app.api.websocket import router as ws_router
+from server.app.api.ai import router as ai_router
 from server.app.config import settings
 from shared.schemas import PROTOCOL_VERSION
 from server.ui.log_bus import server_log_bus
@@ -77,6 +78,7 @@ async def track_client_connections(request: Request, call_next):
 app.include_router(health_router, prefix="/api/v1", tags=["Health & Capabilities"])
 app.include_router(jobs_router, prefix="/api/v1/jobs", tags=["Jobs"])
 app.include_router(ws_router, prefix="/api/v1", tags=["WebSocket"])
+app.include_router(ai_router, prefix="/api/v1/ai", tags=["AI Training & Google Lens"])
 
 if __name__ == "__main__":
     import multiprocessing
