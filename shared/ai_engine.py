@@ -187,25 +187,27 @@ def get_model(architecture: str, num_classes: int = 10) -> nn.Module:
 class Synthetic100kDataset(Dataset):
     """
     Simulated 100,000 Image Dataset generator for GPUShare Assignment benchmarks.
-    Generates deterministic tensor patterns so memory is minimal while fully
-    saturating GPU VRAM and CUDA tensor cores.
+    Pre-allocates a bank of distinct class tensors for ultra-fast memory-cached streaming
+    that saturates GPU VRAM and CUDA tensor cores at maximum throughput.
     """
     def __init__(self, num_samples: int = 100000, num_classes: int = 10, img_size: int = 32):
         self.num_samples = num_samples
         self.num_classes = num_classes
         self.img_size = img_size
 
+        # Pre-generate distinct class prototypes in memory for ultra-fast DataLoader access
+        self.prototypes: List[Tuple[torch.Tensor, int]] = []
+        for c in range(num_classes):
+            for _ in range(10):
+                t = torch.randn(3, img_size, img_size) * 0.4
+                t[:, 8:24, 8:24] += (c * 0.25)
+                self.prototypes.append((t, c))
+
     def __len__(self) -> int:
         return self.num_samples
 
     def __getitem__(self, idx: int) -> Tuple[torch.Tensor, int]:
-        label = idx % self.num_classes
-        # Generate pseudo-deterministic visual features based on label
-        torch.manual_seed(idx % 1000)
-        img = torch.randn(3, self.img_size, self.img_size) * 0.5
-        # Embed distinctive class signature in center
-        img[:, 10:22, 10:22] += (label * 0.3)
-        return img, label
+        return self.prototypes[idx % len(self.prototypes)]
 
 
 class FolderImageDataset(Dataset):

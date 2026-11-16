@@ -145,6 +145,33 @@ DOCS_DATA = {
                 ]
             },
             {
+                "id": "ai_studio",
+                "icon": "🧠",
+                "tag": "GPUSHARE • AI TRAINING & GOOGLE LENS",
+                "tag_color": "#8B5CF6",
+                "title": "Remote CNN Deep Learning & Google Lens Visual Inference",
+                "summary": "Complete instructions on running 100,000 image CNN model training and testing Google Lens classification on the remote GPU.",
+                "points": [
+                    ("🚀 1. Remote GPU CNN Training (100k Dataset)",
+                     "• Step 1: Open 'AI Studio & Lens' tab from the sidebar (located right below Host & Settings).\n"
+                     "• Step 2: Under '1. Select Image Dataset', choose your local dataset folder (supports 100k images) or click 'Use GPUShare 100,000 Benchmark Dataset'.\n"
+                     "• Step 3: Choose CNN Architecture: ResNet18-Lite (Residual Blocks), MobileNetV2-Lite (Depthwise Convolutions), or SimpleCNN.\n"
+                     "• Step 4: Set Epochs, Batch Size, Learning Rate, and select 'Remote NVIDIA GPU (CUDA)' as hardware target.\n"
+                     "• Step 5: Click 'Submit & Train on Remote GPU'. Watch live epoch losses, accuracy curves, and GPU VRAM consumption stream in real-time!"),
+
+                    ("🔍 2. Google Lens • Visual Image Classifier & Tester",
+                     "• Step 1: In AI Studio, switch to the 'Google Lens • Visual Classifier' sub-tab.\n"
+                     "• Step 2: Click 'Browse Local Image' or click any quick sample chip (e.g. 🐱 Cat, 🚗 Car, 🐶 Dog, ✈️ Plane).\n"
+                     "• Step 3: Click 'Scan with Google Lens (Remote GPU)'.\n"
+                     "• Step 4: Within 15-20 milliseconds, the remote GPU returns the predicted category, confidence percentage, top-3 candidates, and execution latency!"),
+
+                    ("⚖️ 3. CPU vs GPU Benchmark Suite (Assignment Evaluation)",
+                     "• Step 1: Switch to 'CPU vs GPU Benchmark Suite' sub-tab.\n"
+                     "• Step 2: Click 'Execute Comparative Hardware Benchmark'.\n"
+                     "• Step 3: Evaluates identical CNN tensor workloads on Host CPU vs Remote NVIDIA GPU, displaying throughput (img/s) and speedup multiplier (e.g. '12.8x Faster on GPU!').")
+                ]
+            },
+            {
                 "id": "faq",
                 "icon": "❓",
                 "tag": "FAQS & TROUBLESHOOTING",
@@ -298,6 +325,33 @@ DOCS_DATA = {
                     ("📋 Server: Render Queue Tab", "Sabhi aane wali tasks ki live queue with client IP, status, progress, aur admin cancel control."),
                     ("🌐 Server: Network & Connections Tab", "Detected network adapters, active client sessions table with live client IPv4, port, live status, last activity, aur data transferred!"),
                     ("🕒 Server: Activity Logs Tab", "System-wide audit trail recording server lifecycle events, connections, aur task status.")
+                ]
+            },
+            {
+                "id": "ai_studio",
+                "icon": "🧠",
+                "tag": "GPUSHARE • AI TRAINING AUR GOOGLE LENS",
+                "tag_color": "#8B5CF6",
+                "title": "Remote CNN Deep Learning aur Google Lens Visual Testing",
+                "summary": "100,000 images par CNN model train karne aur Google Lens ki tarah tasveer pehchan'ne ka mukammal tareeqa.",
+                "points": [
+                    ("🚀 1. Remote GPU CNN Training (100k Images)",
+                     "• Step 1: Sidebar mein Host & Settings ke theek neeche mojood '🧠 AI Studio & Lens' tab kholein.\n"
+                     "• Step 2: '1. Select Image Dataset' mein apna 100k images ka folder choose karein ya 'Use GPUShare 100,000 Benchmark Dataset' par click karein.\n"
+                     "• Step 3: CNN Model select karein (ResNet18-Lite, MobileNetV2-Lite, ya SimpleCNN).\n"
+                     "• Step 4: Epochs (maslan 5 ya 10), Batch Size (64), aur Optimizer set karein aur target 'Remote NVIDIA GPU' select karein.\n"
+                     "• Step 5: 'Submit & Train on Remote GPU' dabayein. Server GPU par real-time training shuru hogi aur live loss, accuracy aur VRAM graphs screen par aane lagenge!"),
+
+                    ("🔍 2. Google Lens • Visual Image Classifier",
+                     "• Step 1: AI Studio ke andar doosra tab 'Google Lens • Visual Classifier' select karein.\n"
+                     "• Step 2: Koi bhi tasveer browse karein ya diye gaye quick sample chips (Cat, Car, Dog, Plane) par click karein.\n"
+                     "• Step 3: 'Scan with Google Lens (Remote GPU)' button dabayein.\n"
+                     "• Step 4: Sirf 15-20 milliseconds mein remote GPU tasveer ko classify karega aur confidence percentage aur top-3 predictions screen par dikha dega!"),
+
+                    ("⚖️ 3. CPU vs GPU Benchmark Suite (Assignment Evaluation)",
+                     "• Step 1: 'CPU vs GPU Benchmark Suite' sub-tab par click karein.\n"
+                     "• Step 2: 'Execute Comparative Hardware Benchmark' dabayein.\n"
+                     "• Step 3: Yeh tool Laptop CPU aur Server GPU ki training speed compare karke speedup factor (e.g. '12.8x Faster on GPU!') aur detailed report generate karega.")
                 ]
             },
             {

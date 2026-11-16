@@ -26,6 +26,7 @@ from client.ui.views.active_job_view import ActiveJobView
 from client.ui.views.benchmarks_view import BenchmarksView
 from client.ui.views.settings_view import SettingsView
 from client.ui.views.docs_view import DocsView
+from client.ui.views.ai_studio_view import AIStudioView
 
 from client.services.config_manager import config_manager
 from client.services.network_client import NetworkClient
@@ -106,6 +107,7 @@ class App(ctk.CTk):
             "active_job": ActiveJobView(self.page_container, self),
             "benchmarks": BenchmarksView(self.page_container, self),
             "settings": SettingsView(self.page_container, self),
+            "ai_studio": AIStudioView(self.page_container, self),
             "docs": DocsView(self.page_container, self)
         }
 
@@ -145,6 +147,7 @@ class App(ctk.CTk):
             "active_job": "Live Job Telemetry & Logs",
             "benchmarks": "Performance & Benchmark Suite",
             "settings": "Host Connection & Settings",
+            "ai_studio": "GPUShare • AI Training & Google Lens Studio",
             "docs": "System Documentation & User Manual"
         }
         self.topbar.set_title(titles.get(page_name, "Studio"))
